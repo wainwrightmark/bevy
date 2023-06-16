@@ -1192,7 +1192,6 @@ pub struct Has<T>(PhantomData<T>);
 unsafe impl<T: Component> WorldQuery for Has<T> {
     type Fetch<'w> = bool;
     type Item<'w> = bool;
-    type ReadOnly = Self;
     type State = ComponentId;
 
     fn shrink<'wlong: 'wshort, 'wshort>(item: Self::Item<'wlong>) -> Self::Item<'wshort> {
@@ -1271,7 +1270,12 @@ unsafe impl<T: Component> WorldQuery for Has<T> {
 }
 
 /// SAFETY: [`Has`] is read only
-unsafe impl<T: Component> ReadOnlyWorldQuery for Has<T> {}
+unsafe impl<T: Component> WorldQueryData for Has<T> {
+    type ReadOnly = Self;
+}
+
+/// SAFETY: [`Has`] is read only
+unsafe impl<T: Component> ReadOnlyWorldQueryData for Has<T> {}
 
 macro_rules! impl_tuple_fetch {
     ($(($name: ident, $state: ident)),*) => {
