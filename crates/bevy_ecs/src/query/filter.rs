@@ -10,7 +10,9 @@ use bevy_ptr::{ThinSlicePtr, UnsafeCellDeref};
 use bevy_utils::all_tuples;
 use std::{cell::UnsafeCell, marker::PhantomData};
 
-use super::ReadOnlyWorldQuery;
+pub unsafe trait WorldQueryFilter : WorldQuery{
+
+}
 
 /// Filter that selects entities with a component `T`.
 ///
@@ -45,7 +47,6 @@ pub struct With<T>(PhantomData<T>);
 unsafe impl<T: Component> WorldQuery for With<T> {
     type Fetch<'w> = ();
     type Item<'w> = ();
-    type ReadOnly = Self;
     type State = ComponentId;
 
     fn shrink<'wlong: 'wshort, 'wshort>(_: Self::Item<'wlong>) -> Self::Item<'wshort> {}
@@ -116,7 +117,7 @@ unsafe impl<T: Component> WorldQuery for With<T> {
 }
 
 // SAFETY: no component access or archetype component access
-unsafe impl<T: Component> ReadOnlyWorldQuery for With<T> {}
+unsafe impl<T: Component> WorldQueryFilter for With<T> {}
 
 /// Filter that selects entities without a component `T`.
 ///
@@ -148,7 +149,6 @@ pub struct Without<T>(PhantomData<T>);
 unsafe impl<T: Component> WorldQuery for Without<T> {
     type Fetch<'w> = ();
     type Item<'w> = ();
-    type ReadOnly = Self;
     type State = ComponentId;
 
     fn shrink<'wlong: 'wshort, 'wshort>(_: Self::Item<'wlong>) -> Self::Item<'wshort> {}
@@ -219,7 +219,7 @@ unsafe impl<T: Component> WorldQuery for Without<T> {
 }
 
 // SAFETY: no component access or archetype component access
-unsafe impl<T: Component> ReadOnlyWorldQuery for Without<T> {}
+unsafe impl<T: Component> WorldQueryFilter for Without<T> {}
 
 /// A filter that tests if any of the given filters apply.
 ///
@@ -268,7 +268,6 @@ macro_rules! impl_query_filter_tuple {
         unsafe impl<$($filter: WorldQuery),*> WorldQuery for Or<($($filter,)*)> {
             type Fetch<'w> = ($(OrFetch<'w, $filter>,)*);
             type Item<'w> = bool;
-            type ReadOnly = Or<($($filter::ReadOnly,)*)>;
             type State = ($($filter::State,)*);
 
             fn shrink<'wlong: 'wshort, 'wshort>(item: Self::Item<'wlong>) -> Self::Item<'wshort> {
@@ -384,7 +383,7 @@ macro_rules! impl_query_filter_tuple {
         }
 
         // SAFETY: filters are read only
-        unsafe impl<$($filter: ReadOnlyWorldQuery),*> ReadOnlyWorldQuery for Or<($($filter,)*)> {}
+        unsafe impl<$($filter: WorldQueryFilter),*> WorldQueryFilter for Or<($($filter,)*)> {}
     };
 }
 
@@ -416,7 +415,6 @@ macro_rules! impl_tick_filter {
         unsafe impl<T: Component> WorldQuery for $name<T> {
             type Fetch<'w> = $fetch_name<'w, T>;
             type Item<'w> = bool;
-            type ReadOnly = Self;
             type State = ComponentId;
 
             fn shrink<'wlong: 'wshort, 'wshort>(item: Self::Item<'wlong>) -> Self::Item<'wshort> {
@@ -560,7 +558,7 @@ macro_rules! impl_tick_filter {
         }
 
         /// SAFETY: read-only access
-        unsafe impl<T: Component> ReadOnlyWorldQuery for $name<T> {}
+        unsafe impl<T: Component> WorldQueryFilter for $name<T> {}
     };
 }
 

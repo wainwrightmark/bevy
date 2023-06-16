@@ -18,7 +18,7 @@ use crate::{
     component::{Component, ComponentDescriptor, ComponentId, ComponentInfo, Components, Tick},
     entity::{AllocAtWithoutReplacement, Entities, Entity, EntityLocation},
     event::{Event, Events},
-    query::{DebugCheckedUnwrap, QueryState, ReadOnlyWorldQuery, WorldQuery},
+    query::{DebugCheckedUnwrap, QueryState, ReadOnlyWorldQueryData, WorldQuery, WorldQueryData, WorldQueryFilter},
     removal_detection::RemovedComponentEvents,
     schedule::{Schedule, ScheduleLabel, Schedules},
     storage::{ResourceData, Storages},
@@ -740,7 +740,7 @@ impl World {
     /// ]);
     /// ```
     #[inline]
-    pub fn query<Q: WorldQuery>(&mut self) -> QueryState<Q, ()> {
+    pub fn query<Q: WorldQueryData>(&mut self) -> QueryState<Q, ()> {
         self.query_filtered::<Q, ()>()
     }
 
@@ -764,7 +764,7 @@ impl World {
     /// assert_eq!(matching_entities, vec![e2]);
     /// ```
     #[inline]
-    pub fn query_filtered<Q: WorldQuery, F: ReadOnlyWorldQuery>(&mut self) -> QueryState<Q, F> {
+    pub fn query_filtered<Q: WorldQueryData, F: WorldQueryFilter>(&mut self) -> QueryState<Q, F> {
         QueryState::new(self)
     }
 
@@ -980,8 +980,8 @@ impl World {
         match self.get_resource() {
             Some(x) => x,
             None => panic!(
-                "Requested resource {} does not exist in the `World`. 
-                Did you forget to add it using `app.insert_resource` / `app.init_resource`? 
+                "Requested resource {} does not exist in the `World`.
+                Did you forget to add it using `app.insert_resource` / `app.init_resource`?
                 Resources are also implicitly added via `app.add_event`,
                 and can be added by plugins.",
                 std::any::type_name::<R>()
@@ -1004,8 +1004,8 @@ impl World {
         match self.get_resource_mut() {
             Some(x) => x,
             None => panic!(
-                "Requested resource {} does not exist in the `World`. 
-                Did you forget to add it using `app.insert_resource` / `app.init_resource`? 
+                "Requested resource {} does not exist in the `World`.
+                Did you forget to add it using `app.insert_resource` / `app.init_resource`?
                 Resources are also implicitly added via `app.add_event`,
                 and can be added by plugins.",
                 std::any::type_name::<R>()
@@ -1075,8 +1075,8 @@ impl World {
         match self.get_non_send_resource() {
             Some(x) => x,
             None => panic!(
-                "Requested non-send resource {} does not exist in the `World`. 
-                Did you forget to add it using `app.insert_non_send_resource` / `app.init_non_send_resource`? 
+                "Requested non-send resource {} does not exist in the `World`.
+                Did you forget to add it using `app.insert_non_send_resource` / `app.init_non_send_resource`?
                 Non-send resources can also be be added by plugins.",
                 std::any::type_name::<R>()
             ),
@@ -1097,8 +1097,8 @@ impl World {
         match self.get_non_send_resource_mut() {
             Some(x) => x,
             None => panic!(
-                "Requested non-send resource {} does not exist in the `World`. 
-                Did you forget to add it using `app.insert_non_send_resource` / `app.init_non_send_resource`? 
+                "Requested non-send resource {} does not exist in the `World`.
+                Did you forget to add it using `app.insert_non_send_resource` / `app.init_non_send_resource`?
                 Non-send resources can also be be added by plugins.",
                 std::any::type_name::<R>()
             ),

@@ -318,7 +318,7 @@ fn find_bone(
 /// Verify that there are no ancestors of a given entity that have an [`AnimationPlayer`].
 fn verify_no_ancestor_player(
     player_parent: Option<&Parent>,
-    parents: &Query<(Option<With<AnimationPlayer>>, Option<&Parent>)>,
+    parents: &Query<(Option<&AnimationPlayer>, Option<&Parent>)>, //TODO Has<T>
 ) -> bool {
     let Some(mut current) = player_parent.map(Parent::get) else { return true };
     loop {
@@ -342,7 +342,7 @@ pub fn animation_player(
     children: Query<&Children>,
     names: Query<&Name>,
     transforms: Query<&mut Transform>,
-    parents: Query<(Option<With<AnimationPlayer>>, Option<&Parent>)>,
+    parents: Query<(Option<&AnimationPlayer>, Option<&Parent>)>, //TODO Has<T>
     mut animation_players: Query<(Entity, Option<&Parent>, &mut AnimationPlayer)>,
 ) {
     animation_players
@@ -372,7 +372,7 @@ fn run_animation_player(
     names: &Query<&Name>,
     transforms: &Query<&mut Transform>,
     maybe_parent: Option<&Parent>,
-    parents: &Query<(Option<With<AnimationPlayer>>, Option<&Parent>)>,
+    parents: &Query<(Option<&AnimationPlayer>, Option<&Parent>)>, //TODO Has<T>
     children: &Query<&Children>,
 ) {
     let paused = player.paused;
@@ -431,7 +431,7 @@ fn apply_animation(
     names: &Query<&Name>,
     transforms: &Query<&mut Transform>,
     maybe_parent: Option<&Parent>,
-    parents: &Query<(Option<With<AnimationPlayer>>, Option<&Parent>)>,
+    parents: &Query<(Option<&AnimationPlayer>, Option<&Parent>)>, //TODO Has<T>
     children: &Query<&Children>,
 ) {
     if let Some(animation_clip) = animations.get(&animation.animation_clip) {

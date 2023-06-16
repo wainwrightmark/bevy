@@ -43,7 +43,7 @@ struct ComponentD;
 struct ComponentZ;
 
 #[derive(WorldQuery)]
-#[world_query(derive(Debug))]
+#[world_query(derive(Debug), data)]
 struct ReadOnlyCustomQuery<T: Component + Debug, P: Component + Debug> {
     entity: Entity,
     a: &'static ComponentA,
@@ -91,25 +91,26 @@ struct CustomQuery<T: Component + Debug, P: Component + Debug> {
 
 // This is a valid query as well, which would iterate over every entity.
 #[derive(WorldQuery)]
-#[world_query(derive(Debug))]
+#[world_query(derive(Debug), data)]
 struct EmptyQuery {
     empty: (),
 }
 
 #[derive(WorldQuery)]
-#[world_query(derive(Debug))]
+#[world_query(derive(Debug), data)]
 struct NestedQuery {
     c: &'static ComponentC,
     d: Option<&'static ComponentD>,
 }
 
 #[derive(WorldQuery)]
-#[world_query(derive(Debug))]
+#[world_query(derive(Debug), data)]
 struct GenericQuery<T: Component, P: Component> {
     generic: (&'static T, &'static P),
 }
 
 #[derive(WorldQuery)]
+#[world_query(filter)]
 struct QueryFilter<T: Component, P: Component> {
     _c: With<ComponentC>,
     _d: With<ComponentD>,

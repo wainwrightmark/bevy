@@ -15,10 +15,15 @@ use crate::bevy_ecs_path;
 #[derive(Default)]
 struct FetchStructAttributes {
     pub is_mutable: bool,
+    pub is_data: bool,
+    pub is_filter: bool,
+
     pub derive_args: Punctuated<syn::Meta, syn::token::Comma>,
 }
 
 static MUTABLE_ATTRIBUTE_NAME: &str = "mutable";
+static DATA_ATTRIBUTE_NAME: &str = "data";
+static FILTER_ATTRIBUTE_NAME: &str = "filter";
 static DERIVE_ATTRIBUTE_NAME: &str = "derive";
 
 mod field_attr_keywords {
@@ -55,12 +60,31 @@ pub fn derive_world_query_impl(input: TokenStream) -> TokenStream {
                 if ident == MUTABLE_ATTRIBUTE_NAME {
                     if let syn::Meta::Path(_) = meta {
                         fetch_struct_attributes.is_mutable = true;
+                        fetch_struct_attributes.is_data = true;
                     } else {
                         panic!(
                             "The `{MUTABLE_ATTRIBUTE_NAME}` attribute is expected to have no value or arguments",
                         );
                     }
-                } else if ident == DERIVE_ATTRIBUTE_NAME {
+                } else if ident == DATA_ATTRIBUTE_NAME {
+                    if let syn::Meta::Path(_) = meta {
+                        fetch_struct_attributes.is_data = true;
+                    } else {
+                        panic!(
+                            "The `{DATA_ATTRIBUTE_NAME}` attribute is expected to have no value or arguments",
+                        );
+                    }
+                }  else if ident == FILTER_ATTRIBUTE_NAME {
+                    if let syn::Meta::Path(_) = meta {
+                        fetch_struct_attributes.is_filter = true;
+                    } else {
+                        panic!(
+                            "The `{FILTER_ATTRIBUTE_NAME}` attribute is expected to have no value or arguments",
+                        );
+                    }
+                }
+
+                else if ident == DERIVE_ATTRIBUTE_NAME {
                     if let syn::Meta::List(meta_list) = meta {
                         meta_list.parse_nested_meta(|meta| {
                             fetch_struct_attributes.derive_args.push(Meta::Path(meta.path));
@@ -166,7 +190,7 @@ pub fn derive_world_query_impl(input: TokenStream) -> TokenStream {
         field_visibilities.push(field.vis.clone());
         let field_ty = field.ty.clone();
         field_types.push(quote!(#field_ty));
-        read_only_field_types.push(quote!(<#field_ty as #path::query::WorldQuery>::ReadOnly));
+        read_only_field_types.push(quote!(<#field_ty as #path::query::WorldQueryData>::ReadOnly));
     }
 
     let derive_args = &fetch_struct_attributes.derive_args;
@@ -243,7 +267,7 @@ pub fn derive_world_query_impl(input: TokenStream) -> TokenStream {
 
                 type Item<'__w> = #item_struct_name #user_ty_generics_with_world;
                 type Fetch<'__w> = #fetch_struct_name #user_ty_generics_with_world;
-                type ReadOnly = #read_only_struct_name #user_ty_generics;
+
                 type State = #state_struct_name #user_ty_generics;
 
                 fn shrink<'__wlong: '__wshort, '__wshort>(
@@ -357,7 +381,12 @@ pub fn derive_world_query_impl(input: TokenStream) -> TokenStream {
                     true #(&& <#field_types>::matches_component_set(&state.#named_field_idents, _set_contains_id))*
                 }
             }
+
+
         };
+
+
+
         (item_struct, query_impl)
     };
 
@@ -385,23 +414,98 @@ pub fn derive_world_query_impl(input: TokenStream) -> TokenStream {
         (quote! {}, quote! {})
     };
 
+    let data_impl = if fetch_struct_attributes.is_data{
+
+        let read_only_data_impl = if fetch_struct_attributes.is_mutable{
+            quote!{
+                /// SAFETY: we assert fields are readonly below
+                unsafe impl #user_impl_generics #path::query::WorldQueryData
+                for #read_only_struct_name #user_ty_generics #user_where_clauses {
+                    type ReadOnly = #read_only_struct_name #user_ty_generics;
+                }
+            }
+        } else{
+            quote!{}
+        };
+
+        quote!{
+            /// SAFETY: we assert fields are readonly below
+            unsafe impl #user_impl_generics #path::query::WorldQueryData
+            for #struct_name #user_ty_generics #user_where_clauses {
+                type ReadOnly = #read_only_struct_name #user_ty_generics;
+            }
+
+            #read_only_data_impl
+        }
+    }else{
+        quote!{}
+    };
+
+
+    let read_only_data_impl = if fetch_struct_attributes.is_data{
+        quote!{
+            /// SAFETY: we assert fields are readonly below
+            unsafe impl #user_impl_generics #path::query::ReadOnlyWorldQueryData
+            for #read_only_struct_name #user_ty_generics #user_where_clauses {}
+        }
+    }else{
+        quote!{}
+    };
+
+    let filter_impl = if fetch_struct_attributes.is_filter{
+        quote!{
+            /// SAFETY: we assert fields are readonly below
+            unsafe impl #user_impl_generics #path::query::WorldQueryFilter
+            for #read_only_struct_name #user_ty_generics #user_where_clauses {
+            }
+        }
+    }else{
+        quote!{}
+    };
+
     let read_only_asserts = if fetch_struct_attributes.is_mutable {
         quote! {
             // Double-check that the data fetched by `<_ as WorldQuery>::ReadOnly` is read-only.
-            // This is technically unnecessary as `<_ as WorldQuery>::ReadOnly: ReadOnlyWorldQuery`
-            // but to protect against future mistakes we assert the assoc type implements `ReadOnlyWorldQuery` anyway
+            // This is technically unnecessary as `<_ as WorldQuery>::ReadOnly: ReadOnlyWorldQueryData`
+            // but to protect against future mistakes we assert the assoc type implements `ReadOnlyWorldQueryData` anyway
             #( assert_readonly::<#read_only_field_types>(); )*
         }
-    } else {
+    } else if fetch_struct_attributes.is_data {
         quote! {
-            // Statically checks that the safety guarantee of `ReadOnlyWorldQuery` for `$fetch_struct_name` actually holds true.
-            // We need this to make sure that we don't compile `ReadOnlyWorldQuery` if our struct contains nested `WorldQuery`
+            // Statically checks that the safety guarantee of `ReadOnlyWorldQueryData` for `$fetch_struct_name` actually holds true.
+            // We need this to make sure that we don't compile `ReadOnlyWorldQueryData` if our struct contains nested `WorldQueryData`
             // members that don't implement it. I.e.:
             // ```
             // #[derive(WorldQuery)]
+            // #[world_query(data)]
             // pub struct Foo { a: &'static mut MyComponent }
             // ```
             #( assert_readonly::<#field_types>(); )*
+        }
+    } else{
+        quote!{
+
+        }
+    };
+
+    let data_asserts = if fetch_struct_attributes.is_data{
+        quote!{
+            #( assert_data::<#field_types>(); )*
+        }
+    }
+    else{
+        quote!{
+
+        }
+    };
+    let filter_asserts = if fetch_struct_attributes.is_filter{
+        quote!{
+            #( assert_filter::<#field_types>(); )*
+        }
+    }
+    else{
+        quote!{
+
         }
     };
 
@@ -410,9 +514,7 @@ pub fn derive_world_query_impl(input: TokenStream) -> TokenStream {
 
         #read_only_struct
 
-        /// SAFETY: we assert fields are readonly below
-        unsafe impl #user_impl_generics #path::query::ReadOnlyWorldQuery
-            for #read_only_struct_name #user_ty_generics #user_where_clauses {}
+
 
         const _: () = {
             #[doc(hidden)]
@@ -427,19 +529,39 @@ pub fn derive_world_query_impl(input: TokenStream) -> TokenStream {
             #mutable_impl
 
             #read_only_impl
+
+            #data_impl
+
+            #read_only_data_impl
+
+            #filter_impl
         };
 
         #[allow(dead_code)]
         const _: () = {
             fn assert_readonly<T>()
             where
-                T: #path::query::ReadOnlyWorldQuery,
+                T: #path::query::ReadOnlyWorldQueryData,
+            {
+            }
+
+            fn assert_data<T>()
+            where
+                T: #path::query::WorldQueryData,
+            {
+            }
+
+            fn assert_filter<T>()
+            where
+                T: #path::query::WorldQueryFilter,
             {
             }
 
             // We generate a readonly assertion for every struct member.
             fn assert_all #user_impl_generics_with_world () #user_where_clauses_with_world {
                 #read_only_asserts
+                #data_asserts
+                #filter_asserts
             }
         };
 

@@ -62,7 +62,7 @@ impl<T> DebugCheckedUnwrap for Option<T> {
 
 #[cfg(test)]
 mod tests {
-    use super::{ReadOnlyWorldQuery, WorldQuery};
+    use super::{WorldQuery, WorldQueryData, ReadOnlyWorldQueryData, WorldQueryFilter};
     use crate::prelude::{AnyOf, Changed, Entity, Or, QueryState, With, Without};
     use crate::query::{ArchetypeFilter, QueryCombinationIter};
     use crate::schedule::{IntoSystemConfigs, Schedule};
@@ -111,9 +111,9 @@ mod tests {
         }
         fn assert_combination<Q, F, const K: usize>(world: &mut World, expected_size: usize)
         where
-            Q: ReadOnlyWorldQuery,
-            F: ReadOnlyWorldQuery,
-            F::ReadOnly: ArchetypeFilter,
+            Q: ReadOnlyWorldQueryData,
+            F: WorldQueryFilter,
+            F: ArchetypeFilter,
         {
             let mut query = world.query_filtered::<Q, F>();
             let query_type = type_name::<QueryCombinationIter<Q, F, K>>();
@@ -126,9 +126,9 @@ mod tests {
         }
         fn assert_all_sizes_equal<Q, F>(world: &mut World, expected_size: usize)
         where
-            Q: ReadOnlyWorldQuery,
-            F: ReadOnlyWorldQuery,
-            F::ReadOnly: ArchetypeFilter,
+            Q: ReadOnlyWorldQueryData,
+            F: WorldQueryFilter,
+            F: ArchetypeFilter,
         {
             let mut query = world.query_filtered::<Q, F>();
             let query_type = type_name::<QueryState<Q, F>>();
@@ -517,6 +517,7 @@ mod tests {
 
         {
             #[derive(WorldQuery)]
+            #[world_query(data)]
             struct CustomAB {
                 a: &'static A,
                 b: &'static B,
@@ -537,6 +538,7 @@ mod tests {
 
         {
             #[derive(WorldQuery)]
+            #[world_query(data)]
             struct FancyParam {
                 e: Entity,
                 b: &'static B,
@@ -558,10 +560,12 @@ mod tests {
 
         {
             #[derive(WorldQuery)]
+            #[world_query(data)]
             struct MaybeBSparse {
                 blah: Option<(&'static B, &'static Sparse)>,
             }
             #[derive(WorldQuery)]
+            #[world_query(data)]
             struct MatchEverything {
                 abcs: AnyOf<(&'static A, &'static B, &'static C)>,
                 opt_bsparse: MaybeBSparse,
@@ -597,10 +601,12 @@ mod tests {
 
         {
             #[derive(WorldQuery)]
+            #[world_query(filter)]
             struct AOrBFilter {
                 a: Or<(With<A>, With<B>)>,
             }
             #[derive(WorldQuery)]
+            #[world_query(filter)]
             struct NoSparseThatsSlow {
                 no: Without<Sparse>,
             }
@@ -618,6 +624,7 @@ mod tests {
 
         {
             #[derive(WorldQuery)]
+            #[world_query(filter)]
             struct CSparseFilter {
                 tuple_structs_pls: With<C>,
                 ugh: With<Sparse>,
@@ -636,6 +643,7 @@ mod tests {
 
         {
             #[derive(WorldQuery)]
+            #[world_query(filter)]
             struct WithoutComps {
                 _1: Without<A>,
                 _2: Without<B>,
@@ -655,6 +663,7 @@ mod tests {
 
         {
             #[derive(WorldQuery)]
+            #[world_query(data)]
             struct IterCombAB {
                 a: &'static A,
                 b: &'static B,

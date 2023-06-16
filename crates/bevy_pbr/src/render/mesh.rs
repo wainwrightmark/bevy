@@ -158,8 +158,8 @@ pub fn extract_meshes(
             &GlobalTransform,
             Option<&PreviousGlobalTransform>,
             &Handle<Mesh>,
-            Option<With<NotShadowReceiver>>,
-            Option<With<NotShadowCaster>>,
+            Option<&NotShadowReceiver>, // TODO Has<T>
+            Option<&NotShadowCaster>, // TODO Has<T>
         )>,
     >,
 ) {

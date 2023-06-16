@@ -3,7 +3,7 @@ use crate::{
     change_detection::{Ticks, TicksMut},
     component::{Component, ComponentId, ComponentStorage, StorageType, Tick},
     entity::Entity,
-    query::{Access, DebugCheckedUnwrap, FilteredAccess},
+    query::{Access, DebugCheckedUnwrap, FilteredAccess, WorldQueryFilter},
     storage::{ComponentSparseSet, Table, TableRow},
     world::{unsafe_world_cell::UnsafeWorldCell, Mut, Ref, World},
 };
@@ -320,9 +320,6 @@ pub unsafe trait WorldQuery {
     /// Per archetype/table state used by this [`WorldQuery`] to fetch [`Self::Item`](crate::query::WorldQuery::Item)
     type Fetch<'a>;
 
-    /// The read-only variant of this [`WorldQuery`], which satisfies the [`ReadOnlyWorldQuery`] trait.
-    type ReadOnly: ReadOnlyWorldQuery<State = Self::State>;
-
     /// State used to construct a [`Self::Fetch`](crate::query::WorldQuery::Fetch). This will be cached inside [`QueryState`](crate::query::QueryState),
     /// so it is best to move as much data / computation here as possible to reduce the cost of
     /// constructing [`Self::Fetch`](crate::query::WorldQuery::Fetch).
@@ -345,7 +342,7 @@ pub unsafe trait WorldQuery {
         this_run: Tick,
     ) -> Self::Fetch<'w>;
 
-    /// While this function can be called for any query, it is always safe to call if `Self: ReadOnlyWorldQuery` holds.
+    /// While this function can be called for any query, it is always safe to call if `Self: ReadOnlyWorldQueryData` holds.
     ///
     /// # Safety
     /// While calling this method on its own cannot cause UB it is marked `unsafe` as the caller must ensure
@@ -448,27 +445,32 @@ pub unsafe trait WorldQuery {
     ) -> bool;
 }
 
-/// A world query that is read only.
+pub unsafe trait WorldQueryData : WorldQuery {
+    /// The read-only variant of this [`WorldQueryData`], which satisfies the [`ReadOnlyWorldQueryData`] trait.
+    type ReadOnly: ReadOnlyWorldQueryData  <State = <Self as WorldQuery>::State>;
+}
+
+/// A world query data that is read only.
 ///
 /// # Safety
 ///
 /// This must only be implemented for read-only [`WorldQuery`]'s.
-pub unsafe trait ReadOnlyWorldQuery: WorldQuery<ReadOnly = Self> {}
+pub unsafe trait ReadOnlyWorldQueryData: WorldQueryData<ReadOnly = Self> {}
 
 /// The `Fetch` of a [`WorldQuery`], which is used to store state for each archetype/table.
 pub type QueryFetch<'w, Q> = <Q as WorldQuery>::Fetch<'w>;
 /// The item type returned when a [`WorldQuery`] is iterated over
 pub type QueryItem<'w, Q> = <Q as WorldQuery>::Item<'w>;
 /// The read-only `Fetch` of a [`WorldQuery`], which is used to store state for each archetype/table.
-pub type ROQueryFetch<'w, Q> = QueryFetch<'w, <Q as WorldQuery>::ReadOnly>;
+pub type ROQueryFetch<'w, Q> = QueryFetch<'w, <Q as WorldQueryData>::ReadOnly>;
 /// The read-only variant of the item type returned when a [`WorldQuery`] is iterated over immutably
-pub type ROQueryItem<'w, Q> = QueryItem<'w, <Q as WorldQuery>::ReadOnly>;
+pub type ROQueryItem<'w, Q> = QueryItem<'w, <Q as WorldQueryData>::ReadOnly>;
 
 /// SAFETY: no component or archetype access
 unsafe impl WorldQuery for Entity {
     type Fetch<'w> = ();
     type Item<'w> = Entity;
-    type ReadOnly = Self;
+
     type State = ();
 
     fn shrink<'wlong: 'wshort, 'wshort>(item: Self::Item<'wlong>) -> Self::Item<'wshort> {
@@ -530,8 +532,12 @@ unsafe impl WorldQuery for Entity {
     }
 }
 
+unsafe impl WorldQueryData for Entity {
+    type ReadOnly = Self;
+}
+
 /// SAFETY: access is read only
-unsafe impl ReadOnlyWorldQuery for Entity {}
+unsafe impl ReadOnlyWorldQueryData for Entity {}
 
 #[doc(hidden)]
 pub struct ReadFetch<'w, T> {
@@ -545,7 +551,6 @@ pub struct ReadFetch<'w, T> {
 unsafe impl<T: Component> WorldQuery for &T {
     type Fetch<'w> = ReadFetch<'w, T>;
     type Item<'w> = &'w T;
-    type ReadOnly = Self;
     type State = ComponentId;
 
     fn shrink<'wlong: 'wshort, 'wshort>(item: &'wlong T) -> &'wshort T {
@@ -674,8 +679,12 @@ unsafe impl<T: Component> WorldQuery for &T {
     }
 }
 
+unsafe impl<T: Component> WorldQueryData for &T {
+    type ReadOnly = Self;
+}
+
 /// SAFETY: access is read only
-unsafe impl<T: Component> ReadOnlyWorldQuery for &T {}
+unsafe impl<T: Component> ReadOnlyWorldQueryData for &T {}
 
 #[doc(hidden)]
 pub struct RefFetch<'w, T> {
@@ -696,7 +705,7 @@ pub struct RefFetch<'w, T> {
 unsafe impl<'__w, T: Component> WorldQuery for Ref<'__w, T> {
     type Fetch<'w> = RefFetch<'w, T>;
     type Item<'w> = Ref<'w, T>;
-    type ReadOnly = Self;
+
     type State = ComponentId;
 
     fn shrink<'wlong: 'wshort, 'wshort>(item: Ref<'wlong, T>) -> Ref<'wshort, T> {
@@ -839,7 +848,11 @@ unsafe impl<'__w, T: Component> WorldQuery for Ref<'__w, T> {
 }
 
 /// SAFETY: access is read only
-unsafe impl<'__w, T: Component> ReadOnlyWorldQuery for Ref<'__w, T> {}
+unsafe impl<'__w, T: Component> WorldQueryData for Ref<'__w, T> {
+    type ReadOnly = Self;
+}
+
+unsafe impl<'__w, T: Component> ReadOnlyWorldQueryData for Ref<'__w, T> {}
 
 #[doc(hidden)]
 pub struct WriteFetch<'w, T> {
@@ -856,11 +869,12 @@ pub struct WriteFetch<'w, T> {
     this_run: Tick,
 }
 
+
+
 /// SAFETY: access of `&T` is a subset of `&mut T`
 unsafe impl<'__w, T: Component> WorldQuery for &'__w mut T {
     type Fetch<'w> = WriteFetch<'w, T>;
     type Item<'w> = Mut<'w, T>;
-    type ReadOnly = &'__w T;
     type State = ComponentId;
 
     fn shrink<'wlong: 'wshort, 'wshort>(item: Mut<'wlong, T>) -> Mut<'wshort, T> {
@@ -1002,6 +1016,10 @@ unsafe impl<'__w, T: Component> WorldQuery for &'__w mut T {
     }
 }
 
+unsafe impl<'__w, T: Component> WorldQueryData for &'__w mut T {
+    type ReadOnly = &'__w T;
+}
+
 #[doc(hidden)]
 pub struct OptionFetch<'w, T: WorldQuery> {
     fetch: T::Fetch<'w>,
@@ -1012,7 +1030,6 @@ pub struct OptionFetch<'w, T: WorldQuery> {
 unsafe impl<T: WorldQuery> WorldQuery for Option<T> {
     type Fetch<'w> = OptionFetch<'w, T>;
     type Item<'w> = Option<T::Item<'w>>;
-    type ReadOnly = Option<T::ReadOnly>;
     type State = T::State;
 
     fn shrink<'wlong: 'wshort, 'wshort>(item: Self::Item<'wlong>) -> Self::Item<'wshort> {
@@ -1107,18 +1124,25 @@ unsafe impl<T: WorldQuery> WorldQuery for Option<T> {
     }
 }
 
+// SAFETY: defers to soundness of `T: WorldQuery` impl
+unsafe impl<T: WorldQueryData> WorldQueryData for Option<T> {
+    type ReadOnly = Option<T::ReadOnly>;
+}
+
+
 /// SAFETY: [`OptionFetch`] is read only because `T` is read only
-unsafe impl<T: ReadOnlyWorldQuery> ReadOnlyWorldQuery for Option<T> {}
+unsafe impl<T: ReadOnlyWorldQueryData> ReadOnlyWorldQueryData for Option<T> {}
 
 macro_rules! impl_tuple_fetch {
     ($(($name: ident, $state: ident)),*) => {
+
         #[allow(non_snake_case)]
         #[allow(clippy::unused_unit)]
         // SAFETY: defers to soundness `$name: WorldQuery` impl
         unsafe impl<$($name: WorldQuery),*> WorldQuery for ($($name,)*) {
             type Fetch<'w> = ($($name::Fetch<'w>,)*);
             type Item<'w> = ($($name::Item<'w>,)*);
-            type ReadOnly = ($($name::ReadOnly,)*);
+
             type State = ($($name::State,)*);
 
             fn shrink<'wlong: 'wshort, 'wshort>(item: Self::Item<'wlong>) -> Self::Item<'wshort> {
@@ -1207,8 +1231,18 @@ macro_rules! impl_tuple_fetch {
             }
         }
 
+        #[allow(non_snake_case)]
+        #[allow(clippy::unused_unit)]
+        // SAFETY: defers to soundness `$name: WorldQuery` impl
+        unsafe impl<$($name: WorldQueryData),*> WorldQueryData for ($($name,)*) {
+            type ReadOnly = ($($name::ReadOnly,)*);
+        }
+
         /// SAFETY: each item in the tuple is read only
-        unsafe impl<$($name: ReadOnlyWorldQuery),*> ReadOnlyWorldQuery for ($($name,)*) {}
+        unsafe impl<$($name: ReadOnlyWorldQueryData),*> ReadOnlyWorldQueryData for ($($name,)*) {}
+
+        /// SAFETY: each item in the tuple is read only
+        unsafe impl<$($name: WorldQueryFilter),*> WorldQueryFilter for ($($name,)*) {}
 
     };
 }
@@ -1222,13 +1256,13 @@ pub struct AnyOf<T>(PhantomData<T>);
 
 macro_rules! impl_anytuple_fetch {
     ($(($name: ident, $state: ident)),*) => {
+
         #[allow(non_snake_case)]
         #[allow(clippy::unused_unit)]
         // SAFETY: defers to soundness of `$name: WorldQuery` impl
         unsafe impl<$($name: WorldQuery),*> WorldQuery for AnyOf<($($name,)*)> {
             type Fetch<'w> = ($(($name::Fetch<'w>, bool),)*);
             type Item<'w> = ($(Option<$name::Item<'w>>,)*);
-            type ReadOnly = AnyOf<($($name::ReadOnly,)*)>;
             type State = ($($name::State,)*);
 
             fn shrink<'wlong: 'wshort, 'wshort>(item: Self::Item<'wlong>) -> Self::Item<'wshort> {
@@ -1337,8 +1371,15 @@ macro_rules! impl_anytuple_fetch {
             }
         }
 
+        #[allow(non_snake_case)]
+        #[allow(clippy::unused_unit)]
+        // SAFETY: defers to soundness of `$name: WorldQuery` impl
+        unsafe impl<$($name: WorldQueryData),*> WorldQueryData for AnyOf<($($name,)*)> {
+            type ReadOnly = AnyOf<($($name::ReadOnly,)*)>;
+        }
+
         /// SAFETY: each item in the tuple is read only
-        unsafe impl<$($name: ReadOnlyWorldQuery),*> ReadOnlyWorldQuery for AnyOf<($($name,)*)> {}
+        unsafe impl<$($name: ReadOnlyWorldQueryData),*> ReadOnlyWorldQueryData for AnyOf<($($name,)*)> {}
     };
 }
 
@@ -1348,13 +1389,12 @@ all_tuples!(impl_anytuple_fetch, 0, 15, F, S);
 /// [`WorldQuery`] used to nullify queries by turning `Query<Q>` into `Query<NopWorldQuery<Q>>`
 ///
 /// This will rarely be useful to consumers of `bevy_ecs`.
-pub struct NopWorldQuery<Q: WorldQuery>(PhantomData<Q>);
+pub struct NopWorldQuery<Q: WorldQueryData>(PhantomData<Q>);
 
 /// SAFETY: `Self::ReadOnly` is `Self`
-unsafe impl<Q: WorldQuery> WorldQuery for NopWorldQuery<Q> {
+unsafe impl<Q: WorldQueryData> WorldQuery for NopWorldQuery<Q> {
     type Fetch<'w> = ();
     type Item<'w> = ();
-    type ReadOnly = Self;
     type State = Q::State;
 
     fn shrink<'wlong: 'wshort, 'wshort>(_: ()) {}
@@ -1415,14 +1455,21 @@ unsafe impl<Q: WorldQuery> WorldQuery for NopWorldQuery<Q> {
     }
 }
 
+/// SAFETY: `Self::ReadOnly` is `Self`
+unsafe impl<Q: WorldQueryData> WorldQueryData for NopWorldQuery<Q> {
+    type ReadOnly = Self;
+}
+
 /// SAFETY: `NopFetch` never accesses any data
-unsafe impl<Q: WorldQuery> ReadOnlyWorldQuery for NopWorldQuery<Q> {}
+unsafe impl<Q: WorldQueryData> ReadOnlyWorldQueryData for NopWorldQuery<Q> {}
+
+
 
 /// SAFETY: `PhantomData` never accesses any world data.
 unsafe impl<T: ?Sized> WorldQuery for PhantomData<T> {
     type Item<'a> = ();
     type Fetch<'a> = ();
-    type ReadOnly = Self;
+
     type State = ();
 
     fn shrink<'wlong: 'wshort, 'wshort>(_item: Self::Item<'wlong>) -> Self::Item<'wshort> {}
@@ -1481,14 +1528,19 @@ unsafe impl<T: ?Sized> WorldQuery for PhantomData<T> {
 }
 
 /// SAFETY: `PhantomData` never accesses any world data.
-unsafe impl<T: ?Sized> ReadOnlyWorldQuery for PhantomData<T> {}
+unsafe impl<T: ?Sized> WorldQueryData for PhantomData<T> {
+    type ReadOnly = Self;
+}
+
+/// SAFETY: `PhantomData` never accesses any world data.
+unsafe impl<T: ?Sized> ReadOnlyWorldQueryData for PhantomData<T> {}
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::{
         self as bevy_ecs,
-        system::{assert_is_system, Query},
+        system::{assert_is_system, Query}, prelude::With,
     };
 
     #[derive(Component)]
@@ -1501,15 +1553,19 @@ mod tests {
     #[test]
     fn world_query_struct_variants() {
         #[derive(WorldQuery)]
+        #[world_query(data)]
         pub struct NamedQuery {
             id: Entity,
             a: &'static A,
+
         }
 
         #[derive(WorldQuery)]
+        #[world_query(data)]
         pub struct TupleQuery(&'static A, &'static B);
 
         #[derive(WorldQuery)]
+        #[world_query(data)]
         pub struct UnitQuery;
 
         fn my_system(_: Query<(NamedQuery, TupleQuery, UnitQuery)>) {}
@@ -1521,6 +1577,7 @@ mod tests {
     #[test]
     fn world_query_phantom_data() {
         #[derive(WorldQuery)]
+        #[world_query(data)]
         pub struct IgnoredQuery<Marker> {
             id: Entity,
             _marker: PhantomData<Marker>,
@@ -1564,6 +1621,7 @@ mod tests {
         // The metadata types generated would be named `ClientState` and `ClientFetch`,
         // but they should rename themselves to avoid conflicts.
         #[derive(WorldQuery)]
+        #[world_query(data)]
         pub struct Client<S: ClientState> {
             pub state: &'static S,
             pub fetch: &'static ClientFetch,
