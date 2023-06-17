@@ -358,13 +358,6 @@ pub unsafe trait WorldQuery {
     /// iterators.
     const IS_DENSE: bool;
 
-    /// Returns true if (and only if) this Fetch relies strictly on archetypes to limit which
-    /// components are accessed by the Query.
-    ///
-    /// This enables optimizations for [`crate::query::QueryIter`] that rely on knowing exactly how
-    /// many elements are being iterated (such as `Iterator::collect()`).
-    const IS_ARCHETYPAL: bool;
-
     /// Adjusts internal state to account for the next [`Archetype`]. This will always be called on
     /// archetypes that match this [`WorldQuery`].
     ///
@@ -445,9 +438,9 @@ pub unsafe trait WorldQuery {
     ) -> bool;
 }
 
-pub unsafe trait WorldQueryData : WorldQuery {
+pub unsafe trait WorldQueryData: WorldQuery {
     /// The read-only variant of this [`WorldQueryData`], which satisfies the [`ReadOnlyWorldQueryData`] trait.
-    type ReadOnly: ReadOnlyWorldQueryData  <State = <Self as WorldQuery>::State>;
+    type ReadOnly: ReadOnlyWorldQueryData<State = <Self as WorldQuery>::State>;
 }
 
 /// A world query data that is read only.
@@ -478,8 +471,6 @@ unsafe impl WorldQuery for Entity {
     }
 
     const IS_DENSE: bool = true;
-
-    const IS_ARCHETYPAL: bool = true;
 
     unsafe fn init_fetch<'w>(
         _world: UnsafeWorldCell<'w>,
@@ -563,8 +554,6 @@ unsafe impl<T: Component> WorldQuery for &T {
             StorageType::SparseSet => false,
         }
     };
-
-    const IS_ARCHETYPAL: bool = true;
 
     #[inline]
     unsafe fn init_fetch<'w>(
@@ -719,8 +708,6 @@ unsafe impl<'__w, T: Component> WorldQuery for Ref<'__w, T> {
         }
     };
 
-    const IS_ARCHETYPAL: bool = true;
-
     #[inline]
     unsafe fn init_fetch<'w>(
         world: UnsafeWorldCell<'w>,
@@ -869,8 +856,6 @@ pub struct WriteFetch<'w, T> {
     this_run: Tick,
 }
 
-
-
 /// SAFETY: access of `&T` is a subset of `&mut T`
 unsafe impl<'__w, T: Component> WorldQuery for &'__w mut T {
     type Fetch<'w> = WriteFetch<'w, T>;
@@ -887,8 +872,6 @@ unsafe impl<'__w, T: Component> WorldQuery for &'__w mut T {
             StorageType::SparseSet => false,
         }
     };
-
-    const IS_ARCHETYPAL: bool = true;
 
     #[inline]
     unsafe fn init_fetch<'w>(
@@ -1038,8 +1021,6 @@ unsafe impl<T: WorldQuery> WorldQuery for Option<T> {
 
     const IS_DENSE: bool = T::IS_DENSE;
 
-    const IS_ARCHETYPAL: bool = T::IS_ARCHETYPAL;
-
     #[inline]
     unsafe fn init_fetch<'w>(
         world: UnsafeWorldCell<'w>,
@@ -1129,7 +1110,6 @@ unsafe impl<T: WorldQueryData> WorldQueryData for Option<T> {
     type ReadOnly = Option<T::ReadOnly>;
 }
 
-
 /// SAFETY: [`OptionFetch`] is read only because `T` is read only
 unsafe impl<T: ReadOnlyWorldQueryData> ReadOnlyWorldQueryData for Option<T> {}
 
@@ -1204,8 +1184,6 @@ unsafe impl<T: Component> WorldQuery for Has<T> {
             StorageType::SparseSet => false,
         }
     };
-
-    const IS_ARCHETYPAL: bool = true;
 
     #[inline]
     unsafe fn init_fetch<'w>(
@@ -1312,7 +1290,7 @@ macro_rules! impl_tuple_fetch {
 
             const IS_DENSE: bool = true $(&& $name::IS_DENSE)*;
 
-            const IS_ARCHETYPAL: bool = true $(&& $name::IS_ARCHETYPAL)*;
+
 
             #[inline]
             unsafe fn set_archetype<'w>(
@@ -1386,7 +1364,9 @@ macro_rules! impl_tuple_fetch {
         unsafe impl<$($name: ReadOnlyWorldQueryData),*> ReadOnlyWorldQueryData for ($($name,)*) {}
 
         /// SAFETY: each item in the tuple is read only
-        unsafe impl<$($name: WorldQueryFilter),*> WorldQueryFilter for ($($name,)*) {}
+        unsafe impl<$($name: WorldQueryFilter),*> WorldQueryFilter for ($($name,)*) {
+            const IS_ARCHETYPAL: bool = true $(&& $name::IS_ARCHETYPAL)*;
+        }
 
     };
 }
@@ -1432,7 +1412,7 @@ macro_rules! impl_anytuple_fetch {
 
             const IS_DENSE: bool = true $(&& $name::IS_DENSE)*;
 
-            const IS_ARCHETYPAL: bool = true $(&& $name::IS_ARCHETYPAL)*;
+
 
             #[inline]
             unsafe fn set_archetype<'w>(
@@ -1545,8 +1525,6 @@ unsafe impl<Q: WorldQueryData> WorldQuery for NopWorldQuery<Q> {
 
     const IS_DENSE: bool = Q::IS_DENSE;
 
-    const IS_ARCHETYPAL: bool = true;
-
     #[inline(always)]
     unsafe fn init_fetch(
         _world: UnsafeWorldCell,
@@ -1607,8 +1585,6 @@ unsafe impl<Q: WorldQueryData> WorldQueryData for NopWorldQuery<Q> {
 /// SAFETY: `NopFetch` never accesses any data
 unsafe impl<Q: WorldQueryData> ReadOnlyWorldQueryData for NopWorldQuery<Q> {}
 
-
-
 /// SAFETY: `PhantomData` never accesses any world data.
 unsafe impl<T: ?Sized> WorldQuery for PhantomData<T> {
     type Item<'a> = ();
@@ -1631,8 +1607,6 @@ unsafe impl<T: ?Sized> WorldQuery for PhantomData<T> {
     // `PhantomData` does not match any components, so all components it matches
     // are stored in a Table (vacuous truth).
     const IS_DENSE: bool = true;
-    // `PhantomData` matches every entity in each archetype.
-    const IS_ARCHETYPAL: bool = true;
 
     unsafe fn set_archetype<'w>(
         _fetch: &mut Self::Fetch<'w>,
@@ -1684,7 +1658,8 @@ mod tests {
     use super::*;
     use crate::{
         self as bevy_ecs,
-        system::{assert_is_system, Query}, prelude::With,
+        prelude::With,
+        system::{assert_is_system, Query},
     };
 
     #[derive(Component)]

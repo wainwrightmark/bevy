@@ -312,7 +312,7 @@ pub fn derive_world_query_impl(input: TokenStream) -> TokenStream {
 
                 const IS_DENSE: bool = true #(&& <#field_types>::IS_DENSE)*;
 
-                const IS_ARCHETYPAL: bool = true #(&& <#field_types>::IS_ARCHETYPAL)*;
+
 
                 /// SAFETY: we call `set_archetype` for each member that implements `Fetch`
                 #[inline]
@@ -453,6 +453,7 @@ pub fn derive_world_query_impl(input: TokenStream) -> TokenStream {
             /// SAFETY: we assert fields are readonly below
             unsafe impl #user_impl_generics #path::query::WorldQueryFilter
             for #read_only_struct_name #user_ty_generics #user_where_clauses {
+                const IS_ARCHETYPAL: bool = true #(&& <#field_types>::IS_ARCHETYPAL)*;
             }
         }
     } else {

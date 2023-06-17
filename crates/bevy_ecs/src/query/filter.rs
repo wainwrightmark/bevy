@@ -10,7 +10,14 @@ use bevy_ptr::{ThinSlicePtr, UnsafeCellDeref};
 use bevy_utils::all_tuples;
 use std::{cell::UnsafeCell, marker::PhantomData};
 
-pub unsafe trait WorldQueryFilter: WorldQuery {}
+pub unsafe trait WorldQueryFilter: WorldQuery {
+    /// Returns true if (and only if) this Fetch relies strictly on archetypes to limit which
+    /// components are accessed by the Query.
+    ///
+    /// This enables optimizations for [`crate::query::QueryIter`] that rely on knowing exactly how
+    /// many elements are being iterated (such as `Iterator::collect()`).
+    const IS_ARCHETYPAL: bool;
+}
 
 /// Filter that selects entities with a component `T`.
 ///
@@ -67,8 +74,6 @@ unsafe impl<T: Component> WorldQuery for With<T> {
         }
     };
 
-    const IS_ARCHETYPAL: bool = true;
-
     #[inline]
     unsafe fn set_table(_fetch: &mut (), _state: &ComponentId, _table: &Table) {}
 
@@ -115,7 +120,9 @@ unsafe impl<T: Component> WorldQuery for With<T> {
 }
 
 // SAFETY: no component access or archetype component access
-unsafe impl<T: Component> WorldQueryFilter for With<T> {}
+unsafe impl<T: Component> WorldQueryFilter for With<T> {
+    const IS_ARCHETYPAL: bool = true;
+}
 
 /// Filter that selects entities without a component `T`.
 ///
@@ -169,8 +176,6 @@ unsafe impl<T: Component> WorldQuery for Without<T> {
         }
     };
 
-    const IS_ARCHETYPAL: bool = true;
-
     #[inline]
     unsafe fn set_table(_fetch: &mut (), _state: &Self::State, _table: &Table) {}
 
@@ -217,7 +222,9 @@ unsafe impl<T: Component> WorldQuery for Without<T> {
 }
 
 // SAFETY: no component access or archetype component access
-unsafe impl<T: Component> WorldQueryFilter for Without<T> {}
+unsafe impl<T: Component> WorldQueryFilter for Without<T> {
+    const IS_ARCHETYPAL: bool = true;
+}
 
 /// A filter that tests if any of the given filters apply.
 ///
@@ -274,7 +281,7 @@ macro_rules! impl_query_filter_tuple {
 
             const IS_DENSE: bool = true $(&& $filter::IS_DENSE)*;
 
-            const IS_ARCHETYPAL: bool = true $(&& $filter::IS_ARCHETYPAL)*;
+
 
             #[inline]
             unsafe fn init_fetch<'w>(world: UnsafeWorldCell<'w>, state: &Self::State, last_run: Tick, this_run: Tick) -> Self::Fetch<'w> {
@@ -381,7 +388,9 @@ macro_rules! impl_query_filter_tuple {
         }
 
         // SAFETY: filters are read only
-        unsafe impl<$($filter: WorldQueryFilter),*> WorldQueryFilter for Or<($($filter,)*)> {}
+        unsafe impl<$($filter: WorldQueryFilter),*> WorldQueryFilter for Or<($($filter,)*)> {
+            const IS_ARCHETYPAL: bool = true $(&& $filter::IS_ARCHETYPAL)*;
+        }
     };
 }
 
@@ -640,7 +649,7 @@ unsafe impl<T: Component> WorldQuery for Added<T> {
             StorageType::SparseSet => false,
         }
     };
-    const IS_ARCHETYPAL: bool = false;
+
     #[inline]
     unsafe fn set_table<'w>(
         fetch: &mut Self::Fetch<'w>,
@@ -721,7 +730,9 @@ unsafe impl<T: Component> WorldQuery for Added<T> {
     }
 }
 #[doc = " SAFETY: read-only access"]
-unsafe impl<T: Component> WorldQueryFilter for Added<T> {}
+unsafe impl<T: Component> WorldQueryFilter for Added<T> {
+    const IS_ARCHETYPAL: bool = false;
+}
 
 /// A filter on a component that only retains results added or mutably dereferenced after the system last ran.
 ///
@@ -808,7 +819,7 @@ unsafe impl<T: Component> WorldQuery for Changed<T> {
             StorageType::SparseSet => false,
         }
     };
-    const IS_ARCHETYPAL: bool = false;
+
     #[inline]
     unsafe fn set_table<'w>(
         fetch: &mut Self::Fetch<'w>,
@@ -891,7 +902,9 @@ unsafe impl<T: Component> WorldQuery for Changed<T> {
     }
 }
 #[doc = " SAFETY: read-only access"]
-unsafe impl<T: Component> WorldQueryFilter for Changed<T> {}
+unsafe impl<T: Component> WorldQueryFilter for Changed<T> {
+    const IS_ARCHETYPAL: bool = false;
+}
 
 /// A marker trait to indicate that the filter works at an archetype level.
 ///
