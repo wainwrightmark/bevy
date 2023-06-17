@@ -68,7 +68,7 @@ unsafe impl<T: Component> WorldQuery for With<T> {
     type Item<'w> = ();
     type State = ComponentId;
 
-    fn shrink<'wlong: 'wshort, 'wshort>(_: Self::Item<'wlong>) -> Self::Item<'wshort> {}
+
 
     #[inline]
     unsafe fn init_fetch(
@@ -170,7 +170,7 @@ unsafe impl<T: Component> WorldQuery for Without<T> {
     type Item<'w> = ();
     type State = ComponentId;
 
-    fn shrink<'wlong: 'wshort, 'wshort>(_: Self::Item<'wlong>) -> Self::Item<'wshort> {}
+
 
     #[inline]
     unsafe fn init_fetch(
@@ -289,9 +289,6 @@ macro_rules! impl_query_filter_tuple {
             type Item<'w> = bool;
             type State = ($($filter::State,)*);
 
-            fn shrink<'wlong: 'wshort, 'wshort>(item: Self::Item<'wlong>) -> Self::Item<'wshort> {
-                item
-            }
 
             const IS_DENSE: bool = true $(&& $filter::IS_DENSE)*;
 
@@ -625,9 +622,7 @@ unsafe impl<T: Component> WorldQuery for Added<T> {
     type Fetch<'w> = AddedFetch<'w, T>;
     type Item<'w> = bool;
     type State = ComponentId;
-    fn shrink<'wlong: 'wshort, 'wshort>(item: Self::Item<'wlong>) -> Self::Item<'wshort> {
-        item
-    }
+
     #[inline]
     unsafe fn init_fetch<'w>(
         world: UnsafeWorldCell<'w>,
@@ -796,9 +791,7 @@ unsafe impl<T: Component> WorldQuery for Changed<T> {
     type Fetch<'w> = ChangedFetch<'w, T>;
     type Item<'w> = bool;
     type State = ComponentId;
-    fn shrink<'wlong: 'wshort, 'wshort>(item: Self::Item<'wlong>) -> Self::Item<'wshort> {
-        item
-    }
+
     #[inline]
     unsafe fn init_fetch<'w>(
         world: UnsafeWorldCell<'w>,

@@ -325,9 +325,6 @@ pub unsafe trait WorldQuery {
     /// constructing [`Self::Fetch`](crate::query::WorldQuery::Fetch).
     type State: Send + Sync + Sized;
 
-    /// This function manually implements subtyping for the query items.
-    fn shrink<'wlong: 'wshort, 'wshort>(item: Self::Item<'wlong>) -> Self::Item<'wshort>;
-
     /// Creates a new instance of this fetch.
     ///
     /// # Safety
@@ -427,6 +424,9 @@ pub unsafe trait WorldQuery {
 pub unsafe trait WorldQueryData: WorldQuery {
     /// The read-only variant of this [`WorldQueryData`], which satisfies the [`ReadOnlyWorldQueryData`] trait.
     type ReadOnly: ReadOnlyWorldQueryData<State = <Self as WorldQuery>::State>;
+
+    /// This function manually implements subtyping for the query items.
+    fn shrink<'wlong: 'wshort, 'wshort>(item: Self::Item<'wlong>) -> Self::Item<'wshort>;
 }
 
 /// A world query data that is read only.
@@ -452,9 +452,7 @@ unsafe impl WorldQuery for Entity {
 
     type State = ();
 
-    fn shrink<'wlong: 'wshort, 'wshort>(item: Self::Item<'wlong>) -> Self::Item<'wshort> {
-        item
-    }
+
 
     const IS_DENSE: bool = true;
 
@@ -511,6 +509,10 @@ unsafe impl WorldQuery for Entity {
 
 unsafe impl WorldQueryData for Entity {
     type ReadOnly = Self;
+
+    fn shrink<'wlong: 'wshort, 'wshort>(item: Self::Item<'wlong>) -> Self::Item<'wshort> {
+        item
+    }
 }
 
 /// SAFETY: access is read only
@@ -530,9 +532,7 @@ unsafe impl<T: Component> WorldQuery for &T {
     type Item<'w> = &'w T;
     type State = ComponentId;
 
-    fn shrink<'wlong: 'wshort, 'wshort>(item: &'wlong T) -> &'wshort T {
-        item
-    }
+
 
     const IS_DENSE: bool = {
         match T::Storage::STORAGE_TYPE {
@@ -656,6 +656,10 @@ unsafe impl<T: Component> WorldQuery for &T {
 
 unsafe impl<T: Component> WorldQueryData for &T {
     type ReadOnly = Self;
+
+    fn shrink<'wlong: 'wshort, 'wshort>(item: &'wlong T) -> &'wshort T {
+        item
+    }
 }
 
 /// SAFETY: access is read only
@@ -683,9 +687,7 @@ unsafe impl<'__w, T: Component> WorldQuery for Ref<'__w, T> {
 
     type State = ComponentId;
 
-    fn shrink<'wlong: 'wshort, 'wshort>(item: Ref<'wlong, T>) -> Ref<'wshort, T> {
-        item
-    }
+
 
     const IS_DENSE: bool = {
         match T::Storage::STORAGE_TYPE {
@@ -823,6 +825,10 @@ unsafe impl<'__w, T: Component> WorldQuery for Ref<'__w, T> {
 /// SAFETY: access is read only
 unsafe impl<'__w, T: Component> WorldQueryData for Ref<'__w, T> {
     type ReadOnly = Self;
+
+    fn shrink<'wlong: 'wshort, 'wshort>(item: Ref<'wlong, T>) -> Ref<'wshort, T> {
+        item
+    }
 }
 
 unsafe impl<'__w, T: Component> ReadOnlyWorldQueryData for Ref<'__w, T> {}
@@ -848,9 +854,7 @@ unsafe impl<'__w, T: Component> WorldQuery for &'__w mut T {
     type Item<'w> = Mut<'w, T>;
     type State = ComponentId;
 
-    fn shrink<'wlong: 'wshort, 'wshort>(item: Mut<'wlong, T>) -> Mut<'wshort, T> {
-        item
-    }
+
 
     const IS_DENSE: bool = {
         match T::Storage::STORAGE_TYPE {
@@ -987,6 +991,10 @@ unsafe impl<'__w, T: Component> WorldQuery for &'__w mut T {
 
 unsafe impl<'__w, T: Component> WorldQueryData for &'__w mut T {
     type ReadOnly = &'__w T;
+
+    fn shrink<'wlong: 'wshort, 'wshort>(item: Mut<'wlong, T>) -> Mut<'wshort, T> {
+        item
+    }
 }
 
 #[doc(hidden)]
@@ -1001,9 +1009,7 @@ unsafe impl<T: WorldQuery> WorldQuery for Option<T> {
     type Item<'w> = Option<T::Item<'w>>;
     type State = T::State;
 
-    fn shrink<'wlong: 'wshort, 'wshort>(item: Self::Item<'wlong>) -> Self::Item<'wshort> {
-        item.map(T::shrink)
-    }
+
 
     const IS_DENSE: bool = T::IS_DENSE;
 
@@ -1094,6 +1100,10 @@ unsafe impl<T: WorldQuery> WorldQuery for Option<T> {
 // SAFETY: defers to soundness of `T: WorldQuery` impl
 unsafe impl<T: WorldQueryData> WorldQueryData for Option<T> {
     type ReadOnly = Option<T::ReadOnly>;
+
+    fn shrink<'wlong: 'wshort, 'wshort>(item: Self::Item<'wlong>) -> Self::Item<'wshort> {
+        item.map(T::shrink)
+    }
 }
 
 /// SAFETY: [`OptionFetch`] is read only because `T` is read only
@@ -1159,10 +1169,6 @@ unsafe impl<T: Component> WorldQuery for Has<T> {
     type Fetch<'w> = bool;
     type Item<'w> = bool;
     type State = ComponentId;
-
-    fn shrink<'wlong: 'wshort, 'wshort>(item: Self::Item<'wlong>) -> Self::Item<'wshort> {
-        item
-    }
 
     const IS_DENSE: bool = {
         match T::Storage::STORAGE_TYPE {
@@ -1236,6 +1242,10 @@ unsafe impl<T: Component> WorldQuery for Has<T> {
 /// SAFETY: [`Has`] is read only
 unsafe impl<T: Component> WorldQueryData for Has<T> {
     type ReadOnly = Self;
+
+    fn shrink<'wlong: 'wshort, 'wshort>(item: Self::Item<'wlong>) -> Self::Item<'wshort> {
+        item
+    }
 }
 
 /// SAFETY: [`Has`] is read only
@@ -1252,13 +1262,6 @@ macro_rules! impl_tuple_fetch {
             type Item<'w> = ($($name::Item<'w>,)*);
 
             type State = ($($name::State,)*);
-
-            fn shrink<'wlong: 'wshort, 'wshort>(item: Self::Item<'wlong>) -> Self::Item<'wshort> {
-                let ($($name,)*) = item;
-                ($(
-                    $name::shrink($name),
-                )*)
-            }
 
             #[inline]
             #[allow(clippy::unused_unit)]
@@ -1336,6 +1339,13 @@ macro_rules! impl_tuple_fetch {
         // SAFETY: defers to soundness `$name: WorldQuery` impl
         unsafe impl<$($name: WorldQueryData),*> WorldQueryData for ($($name,)*) {
             type ReadOnly = ($($name::ReadOnly,)*);
+
+            fn shrink<'wlong: 'wshort, 'wshort>(item: Self::Item<'wlong>) -> Self::Item<'wshort> {
+                let ($($name,)*) = item;
+                ($(
+                    $name::shrink($name),
+                )*)
+            }
         }
 
         /// SAFETY: each item in the tuple is read only
@@ -1376,13 +1386,6 @@ macro_rules! impl_anytuple_fetch {
             type Fetch<'w> = ($(($name::Fetch<'w>, bool),)*);
             type Item<'w> = ($(Option<$name::Item<'w>>,)*);
             type State = ($($name::State,)*);
-
-            fn shrink<'wlong: 'wshort, 'wshort>(item: Self::Item<'wlong>) -> Self::Item<'wshort> {
-                let ($($name,)*) = item;
-                ($(
-                    $name.map($name::shrink),
-                )*)
-            }
 
             #[inline]
             #[allow(clippy::unused_unit)]
@@ -1488,6 +1491,13 @@ macro_rules! impl_anytuple_fetch {
         // SAFETY: defers to soundness of `$name: WorldQuery` impl
         unsafe impl<$($name: WorldQueryData),*> WorldQueryData for AnyOf<($($name,)*)> {
             type ReadOnly = AnyOf<($($name::ReadOnly,)*)>;
+
+            fn shrink<'wlong: 'wshort, 'wshort>(item: Self::Item<'wlong>) -> Self::Item<'wshort> {
+                let ($($name,)*) = item;
+                ($(
+                    $name.map($name::shrink),
+                )*)
+            }
         }
 
         /// SAFETY: each item in the tuple is read only
@@ -1508,8 +1518,6 @@ unsafe impl<Q: WorldQueryData> WorldQuery for NopWorldQuery<Q> {
     type Fetch<'w> = ();
     type Item<'w> = ();
     type State = Q::State;
-
-    fn shrink<'wlong: 'wshort, 'wshort>(_: ()) {}
 
     const IS_DENSE: bool = Q::IS_DENSE;
 
@@ -1568,6 +1576,8 @@ unsafe impl<Q: WorldQueryData> WorldQuery for NopWorldQuery<Q> {
 /// SAFETY: `Self::ReadOnly` is `Self`
 unsafe impl<Q: WorldQueryData> WorldQueryData for NopWorldQuery<Q> {
     type ReadOnly = Self;
+
+    fn shrink<'wlong: 'wshort, 'wshort>(_: ()) {}
 }
 
 /// SAFETY: `NopFetch` never accesses any data
@@ -1579,8 +1589,6 @@ unsafe impl<T: ?Sized> WorldQuery for PhantomData<T> {
     type Fetch<'a> = ();
 
     type State = ();
-
-    fn shrink<'wlong: 'wshort, 'wshort>(_item: Self::Item<'wlong>) -> Self::Item<'wshort> {}
 
     unsafe fn init_fetch<'w>(
         _world: UnsafeWorldCell<'w>,
@@ -1636,6 +1644,8 @@ unsafe impl<T: ?Sized> WorldQuery for PhantomData<T> {
 /// SAFETY: `PhantomData` never accesses any world data.
 unsafe impl<T: ?Sized> WorldQueryData for PhantomData<T> {
     type ReadOnly = Self;
+
+    fn shrink<'wlong: 'wshort, 'wshort>(_item: Self::Item<'wlong>) -> Self::Item<'wshort> {}
 }
 
 /// SAFETY: `PhantomData` never accesses any world data.

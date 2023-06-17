@@ -270,16 +270,6 @@ pub fn derive_world_query_impl(input: TokenStream) -> TokenStream {
 
                 type State = #state_struct_name #user_ty_generics;
 
-                fn shrink<'__wlong: '__wshort, '__wshort>(
-                    item: <#struct_name #user_ty_generics as #path::query::WorldQuery>::Item<'__wlong>
-                ) -> <#struct_name #user_ty_generics as #path::query::WorldQuery>::Item<'__wshort> {
-                    #item_struct_name {
-                        #(
-                            #field_idents: <#field_types>::shrink(item.#field_idents),
-                        )*
-                    }
-                }
-
                 unsafe fn init_fetch<'__w>(
                     _world: #path::world::unsafe_world_cell::UnsafeWorldCell<'__w>,
                     state: &Self::State,
@@ -409,7 +399,19 @@ pub fn derive_world_query_impl(input: TokenStream) -> TokenStream {
                 unsafe impl #user_impl_generics #path::query::WorldQueryData
                 for #read_only_struct_name #user_ty_generics #user_where_clauses {
                     type ReadOnly = #read_only_struct_name #user_ty_generics;
+
+                    fn shrink<'__wlong: '__wshort, '__wshort>(
+                        item: <#read_only_struct_name #user_ty_generics as #path::query::WorldQuery>::Item<'__wlong>
+                    ) -> <#read_only_struct_name #user_ty_generics as #path::query::WorldQuery>::Item<'__wshort> {
+                        #read_only_item_struct_name {
+                            #(
+                                #field_idents: <#read_only_field_types>::shrink(item.#field_idents),
+                            )*
+                        }
+                    }
                 }
+
+
             }
         } else {
             quote! {}
@@ -420,6 +422,16 @@ pub fn derive_world_query_impl(input: TokenStream) -> TokenStream {
             unsafe impl #user_impl_generics #path::query::WorldQueryData
             for #struct_name #user_ty_generics #user_where_clauses {
                 type ReadOnly = #read_only_struct_name #user_ty_generics;
+
+                fn shrink<'__wlong: '__wshort, '__wshort>(
+                    item: <#struct_name #user_ty_generics as #path::query::WorldQuery>::Item<'__wlong>
+                ) -> <#struct_name #user_ty_generics as #path::query::WorldQuery>::Item<'__wshort> {
+                    #item_struct_name {
+                        #(
+                            #field_idents: <#field_types>::shrink(item.#field_idents),
+                        )*
+                    }
+                }
             }
 
             #read_only_data_impl
