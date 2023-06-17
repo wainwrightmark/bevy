@@ -347,16 +347,6 @@ pub fn derive_world_query_impl(input: TokenStream) -> TokenStream {
                     }
                 }
 
-                #[allow(unused_variables)]
-                #[inline(always)]
-                unsafe fn filter_fetch<'__w>(
-                    _fetch: &mut <Self as #path::query::WorldQuery>::Fetch<'__w>,
-                    _entity: #path::entity::Entity,
-                    _table_row: #path::storage::TableRow,
-                ) -> bool {
-                    true #(&& <#field_types>::filter_fetch(&mut _fetch.#named_field_idents, _entity, _table_row))*
-                }
-
                 fn update_component_access(state: &Self::State, _access: &mut #path::query::FilteredAccess<#path::component::ComponentId>) {
                     #( <#field_types>::update_component_access(&state.#named_field_idents, _access); )*
                 }
@@ -454,6 +444,16 @@ pub fn derive_world_query_impl(input: TokenStream) -> TokenStream {
             unsafe impl #user_impl_generics #path::query::WorldQueryFilter
             for #read_only_struct_name #user_ty_generics #user_where_clauses {
                 const IS_ARCHETYPAL: bool = true #(&& <#field_types>::IS_ARCHETYPAL)*;
+
+                #[allow(unused_variables)]
+                #[inline(always)]
+                unsafe fn filter_fetch<'__w>(
+                    _fetch: &mut <Self as #path::query::WorldQuery>::Fetch<'__w>,
+                    _entity: #path::entity::Entity,
+                    _table_row: #path::storage::TableRow,
+                ) -> bool {
+                    true #(&& <#field_types>::filter_fetch(&mut _fetch.#named_field_idents, _entity, _table_row))*
+                }
             }
         }
     } else {

@@ -400,20 +400,6 @@ pub unsafe trait WorldQuery {
         table_row: TableRow,
     ) -> Self::Item<'w>;
 
-    /// # Safety
-    ///
-    /// Must always be called _after_ [`WorldQuery::set_table`] or [`WorldQuery::set_archetype`]. `entity` and
-    /// `table_row` must be in the range of the current table and archetype.
-    #[allow(unused_variables)]
-    #[inline(always)]
-    unsafe fn filter_fetch(
-        fetch: &mut Self::Fetch<'_>,
-        entity: Entity,
-        table_row: TableRow,
-    ) -> bool {
-        true
-    }
-
     /// Adds any component accesses used by this [`WorldQuery`] to `access`.
     // This does not have a default body of `{}` because 99% of cases need to add accesses
     // and forgetting to do so would be unsound.
@@ -1322,15 +1308,7 @@ macro_rules! impl_tuple_fetch {
                 ($($name::fetch($name, _entity, _table_row),)*)
             }
 
-            #[inline(always)]
-            unsafe fn filter_fetch(
-                _fetch: &mut Self::Fetch<'_>,
-                _entity: Entity,
-                _table_row: TableRow
-            ) -> bool {
-                let ($($name,)*) = _fetch;
-                true $(&& $name::filter_fetch($name, _entity, _table_row))*
-            }
+
 
             fn update_component_access(state: &Self::State, _access: &mut FilteredAccess<ComponentId>) {
                 let ($($name,)*) = state;
@@ -1366,6 +1344,16 @@ macro_rules! impl_tuple_fetch {
         /// SAFETY: each item in the tuple is read only
         unsafe impl<$($name: WorldQueryFilter),*> WorldQueryFilter for ($($name,)*) {
             const IS_ARCHETYPAL: bool = true $(&& $name::IS_ARCHETYPAL)*;
+
+            #[inline(always)]
+            unsafe fn filter_fetch(
+                _fetch: &mut Self::Fetch<'_>,
+                _entity: Entity,
+                _table_row: TableRow
+            ) -> bool {
+                let ($($name,)*) = _fetch;
+                true $(&& $name::filter_fetch($name, _entity, _table_row))*
+            }
         }
 
     };

@@ -11,12 +11,26 @@ use bevy_utils::all_tuples;
 use std::{cell::UnsafeCell, marker::PhantomData};
 
 pub unsafe trait WorldQueryFilter: WorldQuery {
-    /// Returns true if (and only if) this Fetch relies strictly on archetypes to limit which
+    /// Returns true if (and only if) this Filter relies strictly on archetypes to limit which
     /// components are accessed by the Query.
     ///
     /// This enables optimizations for [`crate::query::QueryIter`] that rely on knowing exactly how
     /// many elements are being iterated (such as `Iterator::collect()`).
     const IS_ARCHETYPAL: bool;
+
+    /// # Safety
+    ///
+    /// Must always be called _after_ [`WorldQuery::set_table`] or [`WorldQuery::set_archetype`]. `entity` and
+    /// `table_row` must be in the range of the current table and archetype.
+    #[allow(unused_variables)]
+    #[inline(always)]
+    unsafe fn filter_fetch(
+        fetch: &mut Self::Fetch<'_>,
+        entity: Entity,
+        table_row: TableRow,
+    ) -> bool {
+        true
+    }
 }
 
 /// Filter that selects entities with a component `T`.
@@ -270,7 +284,7 @@ macro_rules! impl_query_filter_tuple {
         #[allow(non_snake_case)]
         #[allow(clippy::unused_unit)]
         // SAFETY: defers to soundness of `$filter: WorldQuery` impl
-        unsafe impl<$($filter: WorldQuery),*> WorldQuery for Or<($($filter,)*)> {
+        unsafe impl<$($filter: WorldQueryFilter),*> WorldQuery for Or<($($filter,)*)> {
             type Fetch<'w> = ($(OrFetch<'w, $filter>,)*);
             type Item<'w> = bool;
             type State = ($($filter::State,)*);
@@ -343,14 +357,7 @@ macro_rules! impl_query_filter_tuple {
                 false $(|| ($filter.matches && $filter::filter_fetch(&mut $filter.fetch, _entity, _table_row)))*
             }
 
-            #[inline(always)]
-            unsafe fn filter_fetch(
-                fetch: &mut Self::Fetch<'_>,
-                entity: Entity,
-                table_row: TableRow
-            ) -> bool {
-                Self::fetch(fetch, entity, table_row)
-            }
+
 
             fn update_component_access(state: &Self::State, access: &mut FilteredAccess<ComponentId>) {
                 let ($($filter,)*) = state;
@@ -390,6 +397,15 @@ macro_rules! impl_query_filter_tuple {
         // SAFETY: filters are read only
         unsafe impl<$($filter: WorldQueryFilter),*> WorldQueryFilter for Or<($($filter,)*)> {
             const IS_ARCHETYPAL: bool = true $(&& $filter::IS_ARCHETYPAL)*;
+
+            #[inline(always)]
+            unsafe fn filter_fetch(
+                fetch: &mut Self::Fetch<'_>,
+                entity: Entity,
+                table_row: TableRow
+            ) -> bool {
+                Self::fetch(fetch, entity, table_row)
+            }
         }
     };
 }
@@ -694,14 +710,7 @@ unsafe impl<T: Component> WorldQuery for Added<T> {
             }
         }
     }
-    #[inline(always)]
-    unsafe fn filter_fetch(
-        fetch: &mut Self::Fetch<'_>,
-        entity: Entity,
-        table_row: TableRow,
-    ) -> bool {
-        Self::fetch(fetch, entity, table_row)
-    }
+
     #[inline]
     fn update_component_access(&id: &ComponentId, access: &mut FilteredAccess<ComponentId>) {
         if access.access().has_write(id) {
@@ -732,6 +741,14 @@ unsafe impl<T: Component> WorldQuery for Added<T> {
 #[doc = " SAFETY: read-only access"]
 unsafe impl<T: Component> WorldQueryFilter for Added<T> {
     const IS_ARCHETYPAL: bool = false;
+    #[inline(always)]
+    unsafe fn filter_fetch(
+        fetch: &mut Self::Fetch<'_>,
+        entity: Entity,
+        table_row: TableRow,
+    ) -> bool {
+        Self::fetch(fetch, entity, table_row)
+    }
 }
 
 /// A filter on a component that only retains results added or mutably dereferenced after the system last ran.
@@ -866,14 +883,7 @@ unsafe impl<T: Component> WorldQuery for Changed<T> {
             }
         }
     }
-    #[inline(always)]
-    unsafe fn filter_fetch(
-        fetch: &mut Self::Fetch<'_>,
-        entity: Entity,
-        table_row: TableRow,
-    ) -> bool {
-        Self::fetch(fetch, entity, table_row)
-    }
+
     #[inline]
     fn update_component_access(&id: &ComponentId, access: &mut FilteredAccess<ComponentId>) {
         if access.access().has_write(id) {
@@ -904,6 +914,15 @@ unsafe impl<T: Component> WorldQuery for Changed<T> {
 #[doc = " SAFETY: read-only access"]
 unsafe impl<T: Component> WorldQueryFilter for Changed<T> {
     const IS_ARCHETYPAL: bool = false;
+
+    #[inline(always)]
+    unsafe fn filter_fetch(
+        fetch: &mut Self::Fetch<'_>,
+        entity: Entity,
+        table_row: TableRow,
+    ) -> bool {
+        Self::fetch(fetch, entity, table_row)
+    }
 }
 
 /// A marker trait to indicate that the filter works at an archetype level.
