@@ -6,6 +6,7 @@ mod filter;
 mod iter;
 mod par_iter;
 mod state;
+mod world_query;
 
 pub use access::*;
 pub use fetch::*;
@@ -13,6 +14,8 @@ pub use filter::*;
 pub use iter::*;
 pub use par_iter::*;
 pub use state::*;
+pub use world_query::*;
+pub use bevy_ecs_macros::*;
 
 /// A debug checked version of [`Option::unwrap_unchecked`]. Will panic in
 /// debug modes if unwrapping a `None` or `Err` value in debug mode, but is
@@ -62,7 +65,9 @@ impl<T> DebugCheckedUnwrap for Option<T> {
 
 #[cfg(test)]
 mod tests {
-    use super::{ReadOnlyWorldQueryData, WorldQuery, WorldQueryData, WorldQueryFilter};
+    use bevy_ecs_macros::{WorldQueryData, WorldQueryFilter};
+
+    use super::*;
     use crate::prelude::{AnyOf, Changed, Entity, Or, QueryState, With, Without};
     use crate::query::{ArchetypeFilter, Has, QueryCombinationIter};
     use crate::schedule::{IntoSystemConfigs, Schedule};
@@ -497,8 +502,8 @@ mod tests {
     #[test]
     #[should_panic = "&mut bevy_ecs::query::tests::A conflicts with a previous access in this query."]
     fn self_conflicting_worldquery() {
-        #[derive(WorldQuery)]
-        #[world_query(mutable)]
+        #[derive(WorldQueryData)]
+        #[world_query_data(mutable)]
         struct SelfConflicting {
             a: &'static mut A,
             b: &'static mut A,
@@ -534,8 +539,7 @@ mod tests {
         world.spawn_empty();
 
         {
-            #[derive(WorldQuery)]
-            #[world_query(data)]
+            #[derive(WorldQueryData)]
             struct CustomAB {
                 a: &'static A,
                 b: &'static B,
@@ -555,8 +559,7 @@ mod tests {
         }
 
         {
-            #[derive(WorldQuery)]
-            #[world_query(data)]
+            #[derive(WorldQueryData)]
             struct FancyParam {
                 e: Entity,
                 b: &'static B,
@@ -577,13 +580,11 @@ mod tests {
         }
 
         {
-            #[derive(WorldQuery)]
-            #[world_query(data)]
+            #[derive(WorldQueryData)]
             struct MaybeBSparse {
                 blah: Option<(&'static B, &'static Sparse)>,
             }
-            #[derive(WorldQuery)]
-            #[world_query(data)]
+            #[derive(WorldQueryData)]
             struct MatchEverything {
                 abcs: AnyOf<(&'static A, &'static B, &'static C)>,
                 opt_bsparse: MaybeBSparse,
@@ -618,13 +619,11 @@ mod tests {
         }
 
         {
-            #[derive(WorldQuery)]
-            #[world_query(filter)]
+            #[derive(WorldQueryFilter)]
             struct AOrBFilter {
                 a: Or<(With<A>, With<B>)>,
             }
-            #[derive(WorldQuery)]
-            #[world_query(filter)]
+            #[derive(WorldQueryFilter)]
             struct NoSparseThatsSlow {
                 no: Without<Sparse>,
             }
@@ -641,8 +640,7 @@ mod tests {
         }
 
         {
-            #[derive(WorldQuery)]
-            #[world_query(filter)]
+            #[derive(WorldQueryFilter)]
             struct CSparseFilter {
                 tuple_structs_pls: With<C>,
                 ugh: With<Sparse>,
@@ -660,8 +658,7 @@ mod tests {
         }
 
         {
-            #[derive(WorldQuery)]
-            #[world_query(filter)]
+            #[derive(WorldQueryFilter)]
             struct WithoutComps {
                 _1: Without<A>,
                 _2: Without<B>,
@@ -680,8 +677,7 @@ mod tests {
         }
 
         {
-            #[derive(WorldQuery)]
-            #[world_query(data)]
+            #[derive(WorldQueryData)]
             struct IterCombAB {
                 a: &'static A,
                 b: &'static B,

@@ -68,8 +68,6 @@ unsafe impl<T: Component> WorldQuery for With<T> {
     type Item<'w> = ();
     type State = ComponentId;
 
-
-
     #[inline]
     unsafe fn init_fetch(
         _world: UnsafeWorldCell,
@@ -169,8 +167,6 @@ unsafe impl<T: Component> WorldQuery for Without<T> {
     type Fetch<'w> = ();
     type Item<'w> = ();
     type State = ComponentId;
-
-
 
     #[inline]
     unsafe fn init_fetch(
@@ -917,6 +913,29 @@ unsafe impl<T: Component> WorldQueryFilter for Changed<T> {
         Self::fetch(fetch, entity, table_row)
     }
 }
+
+macro_rules! impl_tuple_world_query_filter {
+    ($(($name: ident, $state: ident)),*) => {
+
+        /// SAFETY: each item in the tuple is a filter
+        unsafe impl<$($name: WorldQueryFilter),*> WorldQueryFilter for ($($name,)*) {
+            const IS_ARCHETYPAL: bool = true $(&& $name::IS_ARCHETYPAL)*;
+
+            #[inline(always)]
+            unsafe fn filter_fetch(
+                _fetch: &mut Self::Fetch<'_>,
+                _entity: Entity,
+                _table_row: TableRow
+            ) -> bool {
+                let ($($name,)*) = _fetch;
+                true $(&& $name::filter_fetch($name, _entity, _table_row))*
+            }
+        }
+
+    };
+}
+
+all_tuples!(impl_tuple_world_query_filter, 0, 15, F, S);
 
 /// A marker trait to indicate that the filter works at an archetype level.
 ///

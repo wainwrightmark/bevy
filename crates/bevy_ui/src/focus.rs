@@ -4,9 +4,10 @@ use bevy_ecs::{
     change_detection::DetectChangesMut,
     entity::Entity,
     prelude::{Component, With},
-    query::WorldQuery,
+    query::{WorldQuery, WorldQueryData},
     reflect::ReflectComponent,
     system::{Local, Query, Res},
+
 };
 use bevy_input::{mouse::MouseButton, touch::Touches, Input};
 use bevy_math::Vec2;
@@ -120,8 +121,8 @@ pub struct State {
 }
 
 /// Main query for [`ui_focus_system`]
-#[derive(WorldQuery)]
-#[world_query(mutable)]
+#[derive(WorldQueryData)]
+#[world_query_data(mutable)]
 pub struct NodeQuery {
     entity: Entity,
     node: &'static Node,
