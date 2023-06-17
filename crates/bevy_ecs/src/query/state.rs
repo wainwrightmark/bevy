@@ -5,7 +5,8 @@ use crate::{
     prelude::FromWorld,
     query::{
         Access, BatchingStrategy, DebugCheckedUnwrap, FilteredAccess, QueryCombinationIter,
-        QueryIter, QueryParIter, WorldQuery, WorldQueryData, ReadOnlyWorldQueryData, WorldQueryFilter
+        QueryIter, QueryParIter, ReadOnlyWorldQueryData, WorldQuery, WorldQueryData,
+        WorldQueryFilter,
     },
     storage::{TableId, TableRow},
     world::{unsafe_world_cell::UnsafeWorldCell, World, WorldId},
@@ -550,10 +551,7 @@ impl<Q: WorldQueryData, F: WorldQueryFilter> QueryState<Q, F> {
     ///
     /// This can only be called for read-only queries, see [`Self::iter_mut`] for write-queries.
     #[inline]
-    pub fn iter<'w, 's>(
-        &'s mut self,
-        world: &'w World,
-    ) -> QueryIter<'w, 's, Q::ReadOnly, F> {
+    pub fn iter<'w, 's>(&'s mut self, world: &'w World) -> QueryIter<'w, 's, Q::ReadOnly, F> {
         self.update_archetypes(world);
         // SAFETY: query is read only
         unsafe {
@@ -582,10 +580,7 @@ impl<Q: WorldQueryData, F: WorldQueryFilter> QueryState<Q, F> {
     ///
     /// This can only be called for read-only queries.
     #[inline]
-    pub fn iter_manual<'w, 's>(
-        &'s self,
-        world: &'w World,
-    ) -> QueryIter<'w, 's, Q::ReadOnly, F> {
+    pub fn iter_manual<'w, 's>(&'s self, world: &'w World) -> QueryIter<'w, 's, Q::ReadOnly, F> {
         self.validate_world(world.id());
         // SAFETY: query is read only and world is validated
         unsafe {

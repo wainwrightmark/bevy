@@ -2,13 +2,14 @@ use crate::{
     archetype::{ArchetypeEntity, ArchetypeId, Archetypes},
     component::Tick,
     entity::{Entities, Entity},
-    query::{ArchetypeFilter, DebugCheckedUnwrap, QueryState, WorldQuery, WorldQueryData, ReadOnlyWorldQueryData, WorldQueryFilter},
+    query::{
+        ArchetypeFilter, DebugCheckedUnwrap, QueryState, ReadOnlyWorldQueryData, WorldQuery,
+        WorldQueryData, WorldQueryFilter,
+    },
     storage::{TableId, TableRow, Tables},
     world::unsafe_world_cell::UnsafeWorldCell,
 };
 use std::{borrow::Borrow, iter::FusedIterator, marker::PhantomData, mem::MaybeUninit};
-
-
 
 /// An [`Iterator`] over query results of a [`Query`](crate::system::Query).
 ///
@@ -81,7 +82,7 @@ where
     tables: &'w Tables,
     archetypes: &'w Archetypes,
     fetch: <Q as WorldQuery>::Fetch<'w>,
-    filter: F::Fetch<'w >,
+    filter: F::Fetch<'w>,
     query_state: &'s QueryState<Q, F>,
 }
 

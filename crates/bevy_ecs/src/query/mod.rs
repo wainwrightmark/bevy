@@ -62,7 +62,7 @@ impl<T> DebugCheckedUnwrap for Option<T> {
 
 #[cfg(test)]
 mod tests {
-    use super::{WorldQuery, WorldQueryData, ReadOnlyWorldQueryData, WorldQueryFilter};
+    use super::{ReadOnlyWorldQueryData, WorldQuery, WorldQueryData, WorldQueryFilter};
     use crate::prelude::{AnyOf, Changed, Entity, Or, QueryState, With, Without};
     use crate::query::{ArchetypeFilter, Has, QueryCombinationIter};
     use crate::schedule::{IntoSystemConfigs, Schedule};

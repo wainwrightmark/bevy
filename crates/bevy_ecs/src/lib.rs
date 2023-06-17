@@ -68,7 +68,10 @@ mod tests {
         change_detection::Ref,
         component::{Component, ComponentId},
         entity::Entity,
-        query::{Added, Changed, FilteredAccess, WorldQuery, WorldQueryData, ReadOnlyWorldQueryData, WorldQueryFilter, With, Without},
+        query::{
+            Added, Changed, FilteredAccess, ReadOnlyWorldQueryData, With, Without, WorldQuery,
+            WorldQueryData, WorldQueryFilter,
+        },
         system::Resource,
         world::{Mut, World},
     };

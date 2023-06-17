@@ -3,7 +3,8 @@ use crate::{
     entity::Entity,
     query::{
         BatchingStrategy, QueryCombinationIter, QueryEntityError, QueryIter, QueryManyIter,
-        QueryParIter, QuerySingleError, QueryState, ROQueryItem, WorldQueryFilter, WorldQueryData, ReadOnlyWorldQueryData
+        QueryParIter, QuerySingleError, QueryState, ROQueryItem, ReadOnlyWorldQueryData,
+        WorldQueryData, WorldQueryFilter,
     },
     world::{unsafe_world_cell::UnsafeWorldCell, Mut},
 };

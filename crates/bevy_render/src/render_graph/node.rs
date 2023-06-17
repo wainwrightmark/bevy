@@ -7,7 +7,9 @@ use crate::{
     renderer::RenderContext,
 };
 use bevy_ecs::{
-    query::{QueryItem, QueryState, ReadOnlyWorldQueryData, WorldQuery, WorldQueryData, WorldQueryFilter},
+    query::{
+        QueryItem, QueryState, ReadOnlyWorldQueryData, WorldQuery, WorldQueryData, WorldQueryFilter,
+    },
     world::{FromWorld, World},
 };
 use downcast_rs::{impl_downcast, Downcast};

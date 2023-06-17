@@ -385,8 +385,6 @@ pub fn derive_world_query_impl(input: TokenStream) -> TokenStream {
 
         };
 
-
-
         (item_struct, query_impl)
     };
 
@@ -414,21 +412,20 @@ pub fn derive_world_query_impl(input: TokenStream) -> TokenStream {
         (quote! {}, quote! {})
     };
 
-    let data_impl = if fetch_struct_attributes.is_data{
-
-        let read_only_data_impl = if fetch_struct_attributes.is_mutable{
-            quote!{
+    let data_impl = if fetch_struct_attributes.is_data {
+        let read_only_data_impl = if fetch_struct_attributes.is_mutable {
+            quote! {
                 /// SAFETY: we assert fields are readonly below
                 unsafe impl #user_impl_generics #path::query::WorldQueryData
                 for #read_only_struct_name #user_ty_generics #user_where_clauses {
                     type ReadOnly = #read_only_struct_name #user_ty_generics;
                 }
             }
-        } else{
-            quote!{}
+        } else {
+            quote! {}
         };
 
-        quote!{
+        quote! {
             /// SAFETY: we assert fields are readonly below
             unsafe impl #user_impl_generics #path::query::WorldQueryData
             for #struct_name #user_ty_generics #user_where_clauses {
@@ -437,30 +434,29 @@ pub fn derive_world_query_impl(input: TokenStream) -> TokenStream {
 
             #read_only_data_impl
         }
-    }else{
-        quote!{}
+    } else {
+        quote! {}
     };
 
-
-    let read_only_data_impl = if fetch_struct_attributes.is_data{
-        quote!{
+    let read_only_data_impl = if fetch_struct_attributes.is_data {
+        quote! {
             /// SAFETY: we assert fields are readonly below
             unsafe impl #user_impl_generics #path::query::ReadOnlyWorldQueryData
             for #read_only_struct_name #user_ty_generics #user_where_clauses {}
         }
-    }else{
-        quote!{}
+    } else {
+        quote! {}
     };
 
-    let filter_impl = if fetch_struct_attributes.is_filter{
-        quote!{
+    let filter_impl = if fetch_struct_attributes.is_filter {
+        quote! {
             /// SAFETY: we assert fields are readonly below
             unsafe impl #user_impl_generics #path::query::WorldQueryFilter
             for #read_only_struct_name #user_ty_generics #user_where_clauses {
             }
         }
-    }else{
-        quote!{}
+    } else {
+        quote! {}
     };
 
     let read_only_asserts = if fetch_struct_attributes.is_mutable {
@@ -482,31 +478,23 @@ pub fn derive_world_query_impl(input: TokenStream) -> TokenStream {
             // ```
             #( assert_readonly::<#field_types>(); )*
         }
-    } else{
-        quote!{
-
-        }
+    } else {
+        quote! {}
     };
 
-    let data_asserts = if fetch_struct_attributes.is_data{
-        quote!{
+    let data_asserts = if fetch_struct_attributes.is_data {
+        quote! {
             #( assert_data::<#field_types>(); )*
         }
-    }
-    else{
-        quote!{
-
-        }
+    } else {
+        quote! {}
     };
-    let filter_asserts = if fetch_struct_attributes.is_filter{
-        quote!{
+    let filter_asserts = if fetch_struct_attributes.is_filter {
+        quote! {
             #( assert_filter::<#field_types>(); )*
         }
-    }
-    else{
-        quote!{
-
-        }
+    } else {
+        quote! {}
     };
 
     TokenStream::from(quote! {

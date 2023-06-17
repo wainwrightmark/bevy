@@ -10,9 +10,7 @@ use bevy_ptr::{ThinSlicePtr, UnsafeCellDeref};
 use bevy_utils::all_tuples;
 use std::{cell::UnsafeCell, marker::PhantomData};
 
-pub unsafe trait WorldQueryFilter : WorldQuery{
-
-}
+pub unsafe trait WorldQueryFilter: WorldQuery {}
 
 /// Filter that selects entities with a component `T`.
 ///
@@ -389,249 +387,511 @@ macro_rules! impl_query_filter_tuple {
 
 all_tuples!(impl_query_filter_tuple, 0, 15, F, S);
 
-macro_rules! impl_tick_filter {
-    (
-        $(#[$meta:meta])*
-        $name: ident,
-        $(#[$fetch_meta:meta])*
-        $fetch_name: ident,
-        $get_slice: expr,
-        $get_sparse_set: expr
-    ) => {
-        $(#[$meta])*
-        pub struct $name<T>(PhantomData<T>);
+// macro_rules! impl_tick_filter {
+//     (
+//         $(#[$meta:meta])*
+//         $name: ident,
+//         $(#[$fetch_meta:meta])*
+//         $fetch_name: ident,
+//         $get_slice: expr,
+//         $get_sparse_set: expr
+//     ) => {
+//         $(#[$meta])*
+//         pub struct $name<T>(PhantomData<T>);
 
-        #[doc(hidden)]
-        $(#[$fetch_meta])*
-        pub struct $fetch_name<'w, T> {
-            table_ticks: Option< ThinSlicePtr<'w, UnsafeCell<Tick>>>,
-            marker: PhantomData<T>,
-            sparse_set: Option<&'w ComponentSparseSet>,
-            last_run: Tick,
-            this_run: Tick,
-        }
+//         #[doc(hidden)]
+//         $(#[$fetch_meta])*
+//         pub struct $fetch_name<'w, T> {
+//             table_ticks: Option< ThinSlicePtr<'w, UnsafeCell<Tick>>>,
+//             marker: PhantomData<T>,
+//             sparse_set: Option<&'w ComponentSparseSet>,
+//             last_run: Tick,
+//             this_run: Tick,
+//         }
 
-        // SAFETY: `Self::ReadOnly` is the same as `Self`
-        unsafe impl<T: Component> WorldQuery for $name<T> {
-            type Fetch<'w> = $fetch_name<'w, T>;
-            type Item<'w> = bool;
-            type State = ComponentId;
+//         // SAFETY: `Self::ReadOnly` is the same as `Self`
+//         unsafe impl<T: Component> WorldQuery for $name<T> {
+//             type Fetch<'w> = $fetch_name<'w, T>;
+//             type Item<'w> = bool;
+//             type State = ComponentId;
 
-            fn shrink<'wlong: 'wshort, 'wshort>(item: Self::Item<'wlong>) -> Self::Item<'wshort> {
-                item
-            }
+//             fn shrink<'wlong: 'wshort, 'wshort>(item: Self::Item<'wlong>) -> Self::Item<'wshort> {
+//                 item
+//             }
 
-            #[inline]
-            unsafe fn init_fetch<'w>(
-                world: UnsafeWorldCell<'w>,
-                &id: &ComponentId,
-                last_run: Tick,
-                this_run: Tick
-            ) -> Self::Fetch<'w> {
-                Self::Fetch::<'w> {
-                    table_ticks: None,
-                    sparse_set: (T::Storage::STORAGE_TYPE == StorageType::SparseSet)
-                        .then(|| {
-                            world.unsafe_world()
-                                 .storages()
-                                 .sparse_sets
-                                 .get(id)
-                                 .debug_checked_unwrap()
-                        }),
-                    marker: PhantomData,
-                    last_run,
-                    this_run,
-                }
-            }
+//             #[inline]
+//             unsafe fn init_fetch<'w>(
+//                 world: UnsafeWorldCell<'w>,
+//                 &id: &ComponentId,
+//                 last_run: Tick,
+//                 this_run: Tick
+//             ) -> Self::Fetch<'w> {
+//                 Self::Fetch::<'w> {
+//                     table_ticks: None,
+//                     sparse_set: (T::Storage::STORAGE_TYPE == StorageType::SparseSet)
+//                         .then(|| {
+//                             world.unsafe_world()
+//                                  .storages()
+//                                  .sparse_sets
+//                                  .get(id)
+//                                  .debug_checked_unwrap()
+//                         }),
+//                     marker: PhantomData,
+//                     last_run,
+//                     this_run,
+//                 }
+//             }
 
-            unsafe fn clone_fetch<'w>(
-                fetch: &Self::Fetch<'w>,
-            ) -> Self::Fetch<'w> {
-                $fetch_name {
-                    table_ticks: fetch.table_ticks,
-                    sparse_set: fetch.sparse_set,
-                    last_run: fetch.last_run,
-                    this_run: fetch.this_run,
-                    marker: PhantomData,
-                }
-            }
+//             unsafe fn clone_fetch<'w>(
+//                 fetch: &Self::Fetch<'w>,
+//             ) -> Self::Fetch<'w> {
+//                 $fetch_name {
+//                     table_ticks: fetch.table_ticks,
+//                     sparse_set: fetch.sparse_set,
+//                     last_run: fetch.last_run,
+//                     this_run: fetch.this_run,
+//                     marker: PhantomData,
+//                 }
+//             }
 
-            const IS_DENSE: bool = {
-                match T::Storage::STORAGE_TYPE {
-                    StorageType::Table => true,
-                    StorageType::SparseSet => false,
-                }
-            };
+//             const IS_DENSE: bool = {
+//                 match T::Storage::STORAGE_TYPE {
+//                     StorageType::Table => true,
+//                     StorageType::SparseSet => false,
+//                 }
+//             };
 
-            const IS_ARCHETYPAL:  bool = false;
+//             const IS_ARCHETYPAL:  bool = false;
 
-            #[inline]
-            unsafe fn set_table<'w>(
-                fetch: &mut Self::Fetch<'w>,
-                &component_id: &ComponentId,
-                table: &'w Table
-            ) {
-                fetch.table_ticks = Some(
-                    $get_slice(
-                        &table
-                            .get_column(component_id)
-                            .debug_checked_unwrap()
-                    ).into(),
-                );
-            }
+//             #[inline]
+//             unsafe fn set_table<'w>(
+//                 fetch: &mut Self::Fetch<'w>,
+//                 &component_id: &ComponentId,
+//                 table: &'w Table
+//             ) {
+//                 fetch.table_ticks = Some(
+//                     $get_slice(
+//                         &table
+//                             .get_column(component_id)
+//                             .debug_checked_unwrap()
+//                     ).into(),
+//                 );
+//             }
 
-            #[inline]
-            unsafe fn set_archetype<'w>(
-                fetch: &mut Self::Fetch<'w>,
-                component_id: &ComponentId,
-                _archetype: &'w Archetype,
-                table: &'w Table
-            ) {
-                if Self::IS_DENSE {
-                    Self::set_table(fetch, component_id, table);
-                }
-            }
+//             #[inline]
+//             unsafe fn set_archetype<'w>(
+//                 fetch: &mut Self::Fetch<'w>,
+//                 component_id: &ComponentId,
+//                 _archetype: &'w Archetype,
+//                 table: &'w Table
+//             ) {
+//                 if Self::IS_DENSE {
+//                     Self::set_table(fetch, component_id, table);
+//                 }
+//             }
 
-            #[inline(always)]
-            unsafe fn fetch<'w>(
-                fetch: &mut Self::Fetch<'w>,
-                entity: Entity,
-                table_row: TableRow
-            ) -> Self::Item<'w> {
-                match T::Storage::STORAGE_TYPE {
-                    StorageType::Table => {
-                        fetch
-                            .table_ticks
-                            .debug_checked_unwrap()
-                            .get(table_row.index())
-                            .deref()
-                            .is_newer_than(fetch.last_run, fetch.this_run)
-                    }
-                    StorageType::SparseSet => {
-                        let sparse_set = &fetch
-                            .sparse_set
-                            .debug_checked_unwrap();
-                        $get_sparse_set(sparse_set, entity)
-                            .debug_checked_unwrap()
-                            .deref()
-                            .is_newer_than(fetch.last_run, fetch.this_run)
-                    }
-                }
-            }
+//             #[inline(always)]
+//             unsafe fn fetch<'w>(
+//                 fetch: &mut Self::Fetch<'w>,
+//                 entity: Entity,
+//                 table_row: TableRow
+//             ) -> Self::Item<'w> {
+//                 match T::Storage::STORAGE_TYPE {
+//                     StorageType::Table => {
+//                         fetch
+//                             .table_ticks
+//                             .debug_checked_unwrap()
+//                             .get(table_row.index())
+//                             .deref()
+//                             .is_newer_than(fetch.last_run, fetch.this_run)
+//                     }
+//                     StorageType::SparseSet => {
+//                         let sparse_set = &fetch
+//                             .sparse_set
+//                             .debug_checked_unwrap();
+//                         $get_sparse_set(sparse_set, entity)
+//                             .debug_checked_unwrap()
+//                             .deref()
+//                             .is_newer_than(fetch.last_run, fetch.this_run)
+//                     }
+//                 }
+//             }
 
-            #[inline(always)]
-            unsafe fn filter_fetch(
-                fetch: &mut Self::Fetch<'_>,
-                entity: Entity,
-                table_row: TableRow
-            ) -> bool {
-                Self::fetch(fetch, entity, table_row)
-            }
+//             #[inline(always)]
+//             unsafe fn filter_fetch(
+//                 fetch: &mut Self::Fetch<'_>,
+//                 entity: Entity,
+//                 table_row: TableRow
+//             ) -> bool {
+//                 Self::fetch(fetch, entity, table_row)
+//             }
 
-            #[inline]
-            fn update_component_access(&id: &ComponentId, access: &mut FilteredAccess<ComponentId>) {
-                if access.access().has_write(id) {
-                    panic!("$state_name<{}> conflicts with a previous access in this query. Shared access cannot coincide with exclusive access.",
-                        std::any::type_name::<T>());
-                }
-                access.add_read(id);
-            }
+//             #[inline]
+//             fn update_component_access(&id: &ComponentId, access: &mut FilteredAccess<ComponentId>) {
+//                 if access.access().has_write(id) {
+//                     panic!("$state_name<{}> conflicts with a previous access in this query. Shared access cannot coincide with exclusive access.",
+//                         std::any::type_name::<T>());
+//                 }
+//                 access.add_read(id);
+//             }
 
-            #[inline]
-            fn update_archetype_component_access(
-                &id: &ComponentId,
-                archetype: &Archetype,
-                access: &mut Access<ArchetypeComponentId>,
-            ) {
-                if let Some(archetype_component_id) = archetype.get_archetype_component_id(id) {
-                    access.add_read(archetype_component_id);
-                }
-            }
+//             #[inline]
+//             fn update_archetype_component_access(
+//                 &id: &ComponentId,
+//                 archetype: &Archetype,
+//                 access: &mut Access<ArchetypeComponentId>,
+//             ) {
+//                 if let Some(archetype_component_id) = archetype.get_archetype_component_id(id) {
+//                     access.add_read(archetype_component_id);
+//                 }
+//             }
 
-            fn init_state(world: &mut World) -> ComponentId {
-                world.init_component::<T>()
-            }
+//             fn init_state(world: &mut World) -> ComponentId {
+//                 world.init_component::<T>()
+//             }
 
-            fn matches_component_set(&id: &ComponentId, set_contains_id: &impl Fn(ComponentId) -> bool) -> bool {
-                set_contains_id(id)
-            }
-        }
+//             fn matches_component_set(&id: &ComponentId, set_contains_id: &impl Fn(ComponentId) -> bool) -> bool {
+//                 set_contains_id(id)
+//             }
+//         }
 
-        /// SAFETY: read-only access
-        unsafe impl<T: Component> WorldQueryFilter for $name<T> {}
-    };
+//         /// SAFETY: read-only access
+//         unsafe impl<T: Component> WorldQueryFilter for $name<T> {}
+//     };
+// }
+
+/// A filter on a component that only retains results added after the system last ran.
+///
+/// A common use for this filter is one-time initialization.
+///
+/// To retain all results without filtering but still check whether they were added after the
+/// system last ran, use [`Ref<T>`](crate::change_detection::Ref).
+///
+/// # Examples
+///
+/// ```
+/// # use bevy_ecs::component::Component;
+/// # use bevy_ecs::query::Added;
+/// # use bevy_ecs::system::IntoSystem;
+/// # use bevy_ecs::system::Query;
+/// #
+/// # #[derive(Component, Debug)]
+/// # struct Name {};
+///
+/// fn print_add_name_component(query: Query<&Name, Added<Name>>) {
+///     for name in &query {
+///         println!(\"Named entity created: {:?}\", name)
+///     }
+/// }
+///
+/// # bevy_ecs::system::assert_is_system(print_add_name_component);
+/// ```
+pub struct Added<T>(PhantomData<T>);
+
+#[doc(hidden)]
+pub struct AddedFetch<'w, T> {
+    table_ticks: Option<ThinSlicePtr<'w, UnsafeCell<Tick>>>,
+    marker: PhantomData<T>,
+    sparse_set: Option<&'w ComponentSparseSet>,
+    last_run: Tick,
+    this_run: Tick,
 }
+unsafe impl<T: Component> WorldQuery for Added<T> {
+    type Fetch<'w> = AddedFetch<'w, T>;
+    type Item<'w> = bool;
+    type State = ComponentId;
+    fn shrink<'wlong: 'wshort, 'wshort>(item: Self::Item<'wlong>) -> Self::Item<'wshort> {
+        item
+    }
+    #[inline]
+    unsafe fn init_fetch<'w>(
+        world: UnsafeWorldCell<'w>,
+        &id: &ComponentId,
+        last_run: Tick,
+        this_run: Tick,
+    ) -> Self::Fetch<'w> {
+        Self::Fetch::<'w> {
+            table_ticks: None,
+            sparse_set: (T::Storage::STORAGE_TYPE == StorageType::SparseSet).then(|| {
+                world
+                    .unsafe_world()
+                    .storages()
+                    .sparse_sets
+                    .get(id)
+                    .debug_checked_unwrap()
+            }),
+            marker: PhantomData,
+            last_run,
+            this_run,
+        }
+    }
+    unsafe fn clone_fetch<'w>(fetch: &Self::Fetch<'w>) -> Self::Fetch<'w> {
+        AddedFetch {
+            table_ticks: fetch.table_ticks,
+            sparse_set: fetch.sparse_set,
+            last_run: fetch.last_run,
+            this_run: fetch.this_run,
+            marker: PhantomData,
+        }
+    }
+    const IS_DENSE: bool = {
+        match T::Storage::STORAGE_TYPE {
+            StorageType::Table => true,
+            StorageType::SparseSet => false,
+        }
+    };
+    const IS_ARCHETYPAL: bool = false;
+    #[inline]
+    unsafe fn set_table<'w>(
+        fetch: &mut Self::Fetch<'w>,
+        &component_id: &ComponentId,
+        table: &'w Table,
+    ) {
+        fetch.table_ticks = Some(
+            (Column::get_added_ticks_slice)(&table.get_column(component_id).debug_checked_unwrap())
+                .into(),
+        );
+    }
+    #[inline]
+    unsafe fn set_archetype<'w>(
+        fetch: &mut Self::Fetch<'w>,
+        component_id: &ComponentId,
+        _archetype: &'w Archetype,
+        table: &'w Table,
+    ) {
+        if Self::IS_DENSE {
+            Self::set_table(fetch, component_id, table);
+        }
+    }
+    #[inline(always)]
+    unsafe fn fetch<'w>(
+        fetch: &mut Self::Fetch<'w>,
+        entity: Entity,
+        table_row: TableRow,
+    ) -> Self::Item<'w> {
+        match T::Storage::STORAGE_TYPE {
+            StorageType::Table => fetch
+                .table_ticks
+                .debug_checked_unwrap()
+                .get(table_row.index())
+                .deref()
+                .is_newer_than(fetch.last_run, fetch.this_run),
+            StorageType::SparseSet => {
+                let sparse_set = &fetch.sparse_set.debug_checked_unwrap();
+                (ComponentSparseSet::get_added_ticks)(sparse_set, entity)
+                    .debug_checked_unwrap()
+                    .deref()
+                    .is_newer_than(fetch.last_run, fetch.this_run)
+            }
+        }
+    }
+    #[inline(always)]
+    unsafe fn filter_fetch(
+        fetch: &mut Self::Fetch<'_>,
+        entity: Entity,
+        table_row: TableRow,
+    ) -> bool {
+        Self::fetch(fetch, entity, table_row)
+    }
+    #[inline]
+    fn update_component_access(&id: &ComponentId, access: &mut FilteredAccess<ComponentId>) {
+        if access.access().has_write(id) {
+            panic!("$state_name<{}> conflicts with a previous access in this query. Shared access cannot coincide with exclusive access.",std::any::type_name::<T>());
+        }
+        access.add_read(id);
+    }
+    #[inline]
+    fn update_archetype_component_access(
+        &id: &ComponentId,
+        archetype: &Archetype,
+        access: &mut Access<ArchetypeComponentId>,
+    ) {
+        if let Some(archetype_component_id) = archetype.get_archetype_component_id(id) {
+            access.add_read(archetype_component_id);
+        }
+    }
+    fn init_state(world: &mut World) -> ComponentId {
+        world.init_component::<T>()
+    }
+    fn matches_component_set(
+        &id: &ComponentId,
+        set_contains_id: &impl Fn(ComponentId) -> bool,
+    ) -> bool {
+        set_contains_id(id)
+    }
+}
+#[doc = " SAFETY: read-only access"]
+unsafe impl<T: Component> WorldQueryFilter for Added<T> {}
 
-impl_tick_filter!(
-    /// A filter on a component that only retains results added after the system last ran.
-    ///
-    /// A common use for this filter is one-time initialization.
-    ///
-    /// To retain all results without filtering but still check whether they were added after the
-    /// system last ran, use [`Ref<T>`](crate::change_detection::Ref).
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use bevy_ecs::component::Component;
-    /// # use bevy_ecs::query::Added;
-    /// # use bevy_ecs::system::IntoSystem;
-    /// # use bevy_ecs::system::Query;
-    /// #
-    /// # #[derive(Component, Debug)]
-    /// # struct Name {};
-    ///
-    /// fn print_add_name_component(query: Query<&Name, Added<Name>>) {
-    ///     for name in &query {
-    ///         println!("Named entity created: {:?}", name)
-    ///     }
-    /// }
-    ///
-    /// # bevy_ecs::system::assert_is_system(print_add_name_component);
-    /// ```
-    Added,
-    AddedFetch,
-    Column::get_added_ticks_slice,
-    ComponentSparseSet::get_added_ticks
-);
+/// A filter on a component that only retains results added or mutably dereferenced after the system last ran.
+///
+/// A common use for this filter is avoiding redundant work when values have not changed.
+///
+/// **Note** that simply *mutably dereferencing* a component is considered a change ([`DerefMut`](std::ops::DerefMut)).
+/// Bevy does not compare components to their previous values.
+///
+/// To retain all results without filtering but still check whether they were changed after the
+/// system last ran, use [`Ref<T>`](crate::change_detection::Ref).
+///
+/// # Examples
+///
+/// ```
+/// # use bevy_ecs::component::Component;
+/// # use bevy_ecs::query::Changed;
+/// # use bevy_ecs::system::IntoSystem;
+/// # use bevy_ecs::system::Query;
+/// #
+/// # #[derive(Component, Debug)]
+/// # struct Name {};
+/// # #[derive(Component)]
+/// # struct Transform {};
+///
+/// fn print_moving_objects_system(query: Query<&Name, Changed<Transform>>) {
+///     for name in &query {
+///         println!(\"Entity Moved: {:?}\", name);
+///     }
+/// }
+///
+/// # bevy_ecs::system::assert_is_system(print_moving_objects_system);
+/// ```
+pub struct Changed<T>(PhantomData<T>);
 
-impl_tick_filter!(
-    /// A filter on a component that only retains results added or mutably dereferenced after the system last ran.
-    ///
-    /// A common use for this filter is avoiding redundant work when values have not changed.
-    ///
-    /// **Note** that simply *mutably dereferencing* a component is considered a change ([`DerefMut`](std::ops::DerefMut)).
-    /// Bevy does not compare components to their previous values.
-    ///
-    /// To retain all results without filtering but still check whether they were changed after the
-    /// system last ran, use [`Ref<T>`](crate::change_detection::Ref).
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use bevy_ecs::component::Component;
-    /// # use bevy_ecs::query::Changed;
-    /// # use bevy_ecs::system::IntoSystem;
-    /// # use bevy_ecs::system::Query;
-    /// #
-    /// # #[derive(Component, Debug)]
-    /// # struct Name {};
-    /// # #[derive(Component)]
-    /// # struct Transform {};
-    ///
-    /// fn print_moving_objects_system(query: Query<&Name, Changed<Transform>>) {
-    ///     for name in &query {
-    ///         println!("Entity Moved: {:?}", name);
-    ///     }
-    /// }
-    ///
-    /// # bevy_ecs::system::assert_is_system(print_moving_objects_system);
-    /// ```
-    Changed,
-    ChangedFetch,
-    Column::get_changed_ticks_slice,
-    ComponentSparseSet::get_changed_ticks
-);
+#[doc(hidden)]
+pub struct ChangedFetch<'w, T> {
+    table_ticks: Option<ThinSlicePtr<'w, UnsafeCell<Tick>>>,
+    marker: PhantomData<T>,
+    sparse_set: Option<&'w ComponentSparseSet>,
+    last_run: Tick,
+    this_run: Tick,
+}
+unsafe impl<T: Component> WorldQuery for Changed<T> {
+    type Fetch<'w> = ChangedFetch<'w, T>;
+    type Item<'w> = bool;
+    type State = ComponentId;
+    fn shrink<'wlong: 'wshort, 'wshort>(item: Self::Item<'wlong>) -> Self::Item<'wshort> {
+        item
+    }
+    #[inline]
+    unsafe fn init_fetch<'w>(
+        world: UnsafeWorldCell<'w>,
+        &id: &ComponentId,
+        last_run: Tick,
+        this_run: Tick,
+    ) -> Self::Fetch<'w> {
+        Self::Fetch::<'w> {
+            table_ticks: None,
+            sparse_set: (T::Storage::STORAGE_TYPE == StorageType::SparseSet).then(|| {
+                world
+                    .unsafe_world()
+                    .storages()
+                    .sparse_sets
+                    .get(id)
+                    .debug_checked_unwrap()
+            }),
+            marker: PhantomData,
+            last_run,
+            this_run,
+        }
+    }
+    unsafe fn clone_fetch<'w>(fetch: &Self::Fetch<'w>) -> Self::Fetch<'w> {
+        ChangedFetch {
+            table_ticks: fetch.table_ticks,
+            sparse_set: fetch.sparse_set,
+            last_run: fetch.last_run,
+            this_run: fetch.this_run,
+            marker: PhantomData,
+        }
+    }
+    const IS_DENSE: bool = {
+        match T::Storage::STORAGE_TYPE {
+            StorageType::Table => true,
+            StorageType::SparseSet => false,
+        }
+    };
+    const IS_ARCHETYPAL: bool = false;
+    #[inline]
+    unsafe fn set_table<'w>(
+        fetch: &mut Self::Fetch<'w>,
+        &component_id: &ComponentId,
+        table: &'w Table,
+    ) {
+        fetch.table_ticks = Some(
+            (Column::get_changed_ticks_slice)(
+                &table.get_column(component_id).debug_checked_unwrap(),
+            )
+            .into(),
+        );
+    }
+    #[inline]
+    unsafe fn set_archetype<'w>(
+        fetch: &mut Self::Fetch<'w>,
+        component_id: &ComponentId,
+        _archetype: &'w Archetype,
+        table: &'w Table,
+    ) {
+        if Self::IS_DENSE {
+            Self::set_table(fetch, component_id, table);
+        }
+    }
+    #[inline(always)]
+    unsafe fn fetch<'w>(
+        fetch: &mut Self::Fetch<'w>,
+        entity: Entity,
+        table_row: TableRow,
+    ) -> Self::Item<'w> {
+        match T::Storage::STORAGE_TYPE {
+            StorageType::Table => fetch
+                .table_ticks
+                .debug_checked_unwrap()
+                .get(table_row.index())
+                .deref()
+                .is_newer_than(fetch.last_run, fetch.this_run),
+            StorageType::SparseSet => {
+                let sparse_set = &fetch.sparse_set.debug_checked_unwrap();
+                (ComponentSparseSet::get_changed_ticks)(sparse_set, entity)
+                    .debug_checked_unwrap()
+                    .deref()
+                    .is_newer_than(fetch.last_run, fetch.this_run)
+            }
+        }
+    }
+    #[inline(always)]
+    unsafe fn filter_fetch(
+        fetch: &mut Self::Fetch<'_>,
+        entity: Entity,
+        table_row: TableRow,
+    ) -> bool {
+        Self::fetch(fetch, entity, table_row)
+    }
+    #[inline]
+    fn update_component_access(&id: &ComponentId, access: &mut FilteredAccess<ComponentId>) {
+        if access.access().has_write(id) {
+            panic!("$state_name<{}> conflicts with a previous access in this query. Shared access cannot coincide with exclusive access.",std::any::type_name::<T>());
+        }
+        access.add_read(id);
+    }
+    #[inline]
+    fn update_archetype_component_access(
+        &id: &ComponentId,
+        archetype: &Archetype,
+        access: &mut Access<ArchetypeComponentId>,
+    ) {
+        if let Some(archetype_component_id) = archetype.get_archetype_component_id(id) {
+            access.add_read(archetype_component_id);
+        }
+    }
+    fn init_state(world: &mut World) -> ComponentId {
+        world.init_component::<T>()
+    }
+    fn matches_component_set(
+        &id: &ComponentId,
+        set_contains_id: &impl Fn(ComponentId) -> bool,
+    ) -> bool {
+        set_contains_id(id)
+    }
+}
+#[doc = " SAFETY: read-only access"]
+unsafe impl<T: Component> WorldQueryFilter for Changed<T> {}
 
 /// A marker trait to indicate that the filter works at an archetype level.
 ///

@@ -1701,7 +1701,6 @@ mod tests {
         pub struct NamedQuery {
             id: Entity,
             a: &'static A,
-
         }
 
         #[derive(WorldQuery)]

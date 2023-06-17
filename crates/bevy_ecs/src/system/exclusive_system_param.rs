@@ -1,6 +1,6 @@
 use crate::{
     prelude::{FromWorld, QueryState},
-    query::{WorldQuery, WorldQueryData, ReadOnlyWorldQueryData, WorldQueryFilter},
+    query::{ReadOnlyWorldQueryData, WorldQuery, WorldQueryData, WorldQueryFilter},
     system::{Local, SystemMeta, SystemParam, SystemState},
     world::World,
 };

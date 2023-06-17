@@ -2,7 +2,10 @@ use crate::{component::Tick, world::unsafe_world_cell::UnsafeWorldCell};
 use bevy_tasks::ComputeTaskPool;
 use std::ops::Range;
 
-use super::{QueryItem, QueryState, ROQueryItem, WorldQuery, WorldQueryData, ReadOnlyWorldQueryData, WorldQueryFilter};
+use super::{
+    QueryItem, QueryState, ROQueryItem, ReadOnlyWorldQueryData, WorldQuery, WorldQueryData,
+    WorldQueryFilter,
+};
 
 /// Dictates how a parallel query chunks up large tables/archetypes
 /// during iteration.

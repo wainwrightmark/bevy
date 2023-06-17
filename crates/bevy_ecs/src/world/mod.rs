@@ -18,7 +18,10 @@ use crate::{
     component::{Component, ComponentDescriptor, ComponentId, ComponentInfo, Components, Tick},
     entity::{AllocAtWithoutReplacement, Entities, Entity, EntityLocation},
     event::{Event, Events},
-    query::{DebugCheckedUnwrap, QueryState, ReadOnlyWorldQueryData, WorldQuery, WorldQueryData, WorldQueryFilter},
+    query::{
+        DebugCheckedUnwrap, QueryState, ReadOnlyWorldQueryData, WorldQuery, WorldQueryData,
+        WorldQueryFilter,
+    },
     removal_detection::RemovedComponentEvents,
     schedule::{Schedule, ScheduleLabel, Schedules},
     storage::{ResourceData, Storages},

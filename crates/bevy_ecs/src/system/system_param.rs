@@ -6,7 +6,8 @@ use crate::{
     component::{ComponentId, ComponentTicks, Components, Tick},
     entity::Entities,
     query::{
-        Access, FilteredAccess, FilteredAccessSet, QueryState, WorldQuery, WorldQueryData, ReadOnlyWorldQueryData, WorldQueryFilter,
+        Access, FilteredAccess, FilteredAccessSet, QueryState, ReadOnlyWorldQueryData, WorldQuery,
+        WorldQueryData, WorldQueryFilter,
     },
     system::{Query, SystemMeta},
     world::{unsafe_world_cell::UnsafeWorldCell, FromWorld, World},
@@ -1566,7 +1567,7 @@ mod tests {
     use super::*;
     use crate::{
         self as bevy_ecs, // Necessary for the `SystemParam` Derive when used inside `bevy_ecs`.
-        query::{WorldQuery, WorldQueryData, ReadOnlyWorldQueryData, WorldQueryFilter},
+        query::{ReadOnlyWorldQueryData, WorldQuery, WorldQueryData, WorldQueryFilter},
         system::{assert_is_system, Query},
     };
     use std::marker::PhantomData;

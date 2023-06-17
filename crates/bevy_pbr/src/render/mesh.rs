@@ -15,7 +15,7 @@ use bevy_core_pipeline::{
 };
 use bevy_ecs::{
     prelude::*,
-    query::{ROQueryItem, Has},
+    query::{Has, ROQueryItem},
     system::{lifetimeless::*, SystemParamItem, SystemState},
 };
 use bevy_math::{Mat3A, Mat4, Vec2};
