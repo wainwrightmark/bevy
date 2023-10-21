@@ -1,12 +1,11 @@
-use bevy_macro_utils::ensure_no_collision;
 use proc_macro::TokenStream;
-use proc_macro2::{Ident, Span};
-use quote::{format_ident, quote};
-use syn::{parse_macro_input, parse_quote, Data, DataStruct, DeriveInput, Index};
+use proc_macro2::Span;
+use quote::quote;
+use syn::{parse_macro_input, Data, DataStruct, DeriveInput};
 
 use crate::{
     bevy_ecs_path,
-    world_query::{item_struct, world_query_impl},
+    world_query::{self, item_struct, world_query_impl, FieldsInfo, NamesInfo},
 };
 
 mod field_attr_keywords {
@@ -21,30 +20,7 @@ pub fn derive_world_query_filter_impl(input: TokenStream) -> TokenStream {
 
     let path = bevy_ecs_path();
 
-    let user_generics = ast.generics.clone();
-    let (user_impl_generics, user_ty_generics, user_where_clauses) = user_generics.split_for_impl();
-    let user_generics_with_world = {
-        let mut generics = ast.generics;
-        generics.params.insert(0, parse_quote!('__w));
-        generics
-    };
-    let (user_impl_generics_with_world, user_ty_generics_with_world, user_where_clauses_with_world) =
-        user_generics_with_world.split_for_impl();
-
-    let struct_name = ast.ident;
-
-    let item_struct_name = Ident::new(&format!("{struct_name}Item"), Span::call_site());
-
-    let fetch_struct_name = Ident::new(&format!("{struct_name}Fetch"), Span::call_site());
-    let fetch_struct_name = ensure_no_collision(fetch_struct_name, tokens.clone());
-
-    let marker_name =
-        ensure_no_collision(format_ident!("_world_query_derive_marker"), tokens.clone());
-
-    // Generate a name for the state struct that doesn't conflict
-    // with the struct definition.
-    let state_struct_name = Ident::new(&format!("{struct_name}State"), Span::call_site());
-    let state_struct_name = ensure_no_collision(state_struct_name, tokens);
+    let names = NamesInfo::new(ast.ident, &tokens);
 
     let Data::Struct(DataStruct { fields, .. }) = &ast.data else {
         return syn::Error::new(
@@ -55,69 +31,44 @@ pub fn derive_world_query_filter_impl(input: TokenStream) -> TokenStream {
         .into();
     };
 
-    let mut field_attrs = Vec::new();
-    let mut field_visibilities = Vec::new();
-    let mut field_idents = Vec::new();
-    let mut named_field_idents = Vec::new();
-    let mut field_types = Vec::new();
-    for (i, field) in fields.iter().enumerate() {
-        let attrs = field.attrs.clone();
-
-        let named_field_ident = field
-            .ident
-            .as_ref()
-            .cloned()
-            .unwrap_or_else(|| format_ident!("f{i}"));
-        let i = Index::from(i);
-        let field_ident = field
-            .ident
-            .as_ref()
-            .map_or(quote! { #i }, |i| quote! { #i });
-        field_idents.push(field_ident);
-        named_field_idents.push(named_field_ident);
-        field_attrs.push(attrs);
-        field_visibilities.push(field.vis.clone());
-        let field_ty = field.ty.clone();
-        field_types.push(quote!(#field_ty));
-    }
+    let fields_information = FieldsInfo::new(fields.clone());
 
     let derive_macro_call = quote!();
 
     let item_struct = item_struct(
         &path,
-        fields,
-        &derive_macro_call,
-        &struct_name,
         &visibility,
-        &item_struct_name,
-        &field_types,
-        &user_impl_generics_with_world,
-        &field_attrs,
-        &field_visibilities,
-        &field_idents,
-        &user_ty_generics,
-        &user_ty_generics_with_world,
-        user_where_clauses_with_world,
+        &fields_information,
+        &names,
+        &ast.generics,
+        &derive_macro_call,
     );
 
     let world_query_impl = world_query_impl(
         &path,
-        &struct_name,
         &visibility,
-        &item_struct_name,
-        &fetch_struct_name,
-        &field_types,
-        &user_impl_generics,
-        &user_impl_generics_with_world,
-        &field_idents,
-        &user_ty_generics,
-        &user_ty_generics_with_world,
-        &named_field_idents,
-        &marker_name,
-        &state_struct_name,
-        user_where_clauses,
-        user_where_clauses_with_world,
+        &fields_information,
+        &names,
+        &ast.generics,
     );
+
+    let NamesInfo {
+        struct_name,
+        state_struct_name,
+        ..
+    } = names;
+
+    let FieldsInfo {
+        field_types,
+        field_idents,
+        named_field_idents,
+        ..
+    } = fields_information;
+
+    let user_generics_with_world = world_query::add_world_lifetime(&ast.generics);
+    let (user_impl_generics, user_ty_generics, user_where_clauses) = ast.generics.split_for_impl();
+    let (user_impl_generics_with_world, _, user_where_clauses_with_world) =
+        user_generics_with_world.split_for_impl();
 
     let filter_impl = quote! {
         impl #user_impl_generics #path::query::WorldQueryFilter

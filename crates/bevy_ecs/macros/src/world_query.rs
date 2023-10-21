@@ -1,24 +1,156 @@
-use proc_macro2::Ident;
-use quote::quote;
-use syn::{Attribute, Fields, ImplGenerics, TypeGenerics, Visibility, WhereClause};
+use bevy_macro_utils::ensure_no_collision;
+use proc_macro::TokenStream;
+use proc_macro2::{Ident, Span};
+use quote::{format_ident, quote};
+use syn::{parse_quote, Index};
+use syn::{Attribute, Fields, Generics, Visibility};
+
+#[derive(Clone)]
+pub(crate) struct NamesInfo {
+    pub struct_name: Ident,
+    pub item_struct_name: Ident,
+    pub fetch_struct_name: Ident,
+    pub marker_name: Ident,
+    pub state_struct_name: Ident,
+}
+
+impl NamesInfo {
+    pub(crate) fn new(struct_name: Ident, tokens: &TokenStream) -> Self {
+        let item_struct_name = Ident::new(&format!("{struct_name}Item"), Span::call_site());
+
+        let fetch_struct_name = Ident::new(&format!("{struct_name}Fetch"), Span::call_site());
+        let fetch_struct_name = ensure_no_collision(fetch_struct_name, tokens.clone());
+
+        let marker_name =
+            ensure_no_collision(format_ident!("_world_query_derive_marker"), tokens.clone());
+
+        // Generate a name for the state struct that doesn't conflict
+        // with the struct definition.
+        let state_struct_name = Ident::new(&format!("{struct_name}State"), Span::call_site());
+        let state_struct_name = ensure_no_collision(state_struct_name, tokens.clone());
+
+        Self {
+            struct_name,
+            item_struct_name,
+            fetch_struct_name,
+            marker_name,
+            state_struct_name,
+        }
+    }
+
+    pub fn make_readonly(self, readonly_struct_name: Ident, tokens: &TokenStream) -> Self {
+        let item_struct_name =
+            Ident::new(&format!("{readonly_struct_name}Item"), Span::call_site());
+        let fetch_struct_name =
+            Ident::new(&format!("{readonly_struct_name}Fetch"), Span::call_site());
+        let fetch_struct_name = ensure_no_collision(fetch_struct_name, tokens.clone());
+
+        Self {
+            struct_name: readonly_struct_name,
+            item_struct_name,
+            fetch_struct_name,
+            ..self
+        }
+    }
+}
+
+#[derive(Clone)]
+pub(crate) struct FieldsInfo {
+    pub fields: Fields,
+    pub field_types: Vec<proc_macro2::TokenStream>,
+    pub field_attrs: Vec<Vec<Attribute>>,
+    pub field_visibilities: Vec<Visibility>,
+    pub field_idents: Vec<proc_macro2::TokenStream>,
+    pub named_field_idents: Vec<Ident>,
+}
+
+impl FieldsInfo {
+    pub(crate) fn new(fields: Fields) -> Self {
+        let mut field_attrs = Vec::new();
+        let mut field_visibilities = Vec::new();
+        let mut field_idents = Vec::new();
+        let mut named_field_idents = Vec::new();
+        let mut field_types = Vec::new();
+        for (i, field) in fields.iter().enumerate() {
+            let attrs = field.attrs.clone();
+
+            let named_field_ident = field
+                .ident
+                .as_ref()
+                .cloned()
+                .unwrap_or_else(|| format_ident!("f{i}"));
+            let i = Index::from(i);
+            let field_ident = field
+                .ident
+                .as_ref()
+                .map_or(quote! { #i }, |i| quote! { #i });
+            field_idents.push(field_ident);
+            named_field_idents.push(named_field_ident);
+            field_attrs.push(attrs);
+            field_visibilities.push(field.vis.clone());
+            let field_ty = field.ty.clone();
+            field_types.push(quote!(#field_ty));
+        }
+
+        Self {
+            fields,
+            field_types,
+            field_attrs,
+            field_visibilities,
+            field_idents,
+            named_field_idents,
+        }
+    }
+
+    pub fn make_readonly(mut self, bevy_ecs_path: &syn::Path) -> Self {
+        self.field_types = self
+            .fields
+            .iter()
+            .map(|field| {
+                let field_ty = field.ty.clone();
+                quote!(<#field_ty as #bevy_ecs_path::query::WorldQueryData>::ReadOnly)
+            })
+            .collect();
+
+        self
+    }
+}
+
+pub(crate) fn add_world_lifetime(generics: &Generics) -> Generics {
+    let mut generics = generics.clone();
+    generics.params.insert(0, parse_quote!('__w));
+    generics
+}
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn item_struct(
     path: &syn::Path,
-    fields: &Fields,
-    derive_macro_call: &proc_macro2::TokenStream,
-    struct_name: &Ident,
     visibility: &Visibility,
-    item_struct_name: &Ident,
-    field_types: &Vec<proc_macro2::TokenStream>,
-    user_impl_generics_with_world: &ImplGenerics,
-    field_attrs: &Vec<Vec<Attribute>>,
-    field_visibilities: &Vec<Visibility>,
-    field_idents: &Vec<proc_macro2::TokenStream>,
-    user_ty_generics: &TypeGenerics,
-    user_ty_generics_with_world: &TypeGenerics,
-    user_where_clauses_with_world: Option<&WhereClause>,
+    fields_information: &FieldsInfo,
+    names: &NamesInfo,
+    user_generics: &Generics,
+    derive_macro_call: &proc_macro2::TokenStream,
 ) -> proc_macro2::TokenStream {
+    let NamesInfo {
+        struct_name,
+        item_struct_name,
+        ..
+    } = names;
+
+    let user_generics_with_world = add_world_lifetime(user_generics);
+    let (_, user_ty_generics, _) = user_generics.split_for_impl();
+    let (user_impl_generics_with_world, user_ty_generics_with_world, user_where_clauses_with_world) =
+        user_generics_with_world.split_for_impl();
+
+    let FieldsInfo {
+        fields,
+        field_types,
+        field_attrs,
+        field_visibilities,
+        field_idents,
+        ..
+    } = fields_information;
+
     let item_attrs = quote!(
             #[doc = "Automatically generated [`WorldQuery`] item type for [`"]
             #[doc = stringify!(#struct_name)]
@@ -52,22 +184,31 @@ pub(crate) fn item_struct(
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn world_query_impl(
     path: &syn::Path,
-    struct_name: &Ident,
     visibility: &Visibility,
-    item_struct_name: &Ident,
-    fetch_struct_name: &Ident,
-    field_types: &Vec<proc_macro2::TokenStream>,
-    user_impl_generics: &ImplGenerics,
-    user_impl_generics_with_world: &ImplGenerics,
-    field_idents: &Vec<proc_macro2::TokenStream>,
-    user_ty_generics: &TypeGenerics,
-    user_ty_generics_with_world: &TypeGenerics,
-    named_field_idents: &Vec<Ident>,
-    marker_name: &Ident,
-    state_struct_name: &Ident,
-    user_where_clauses: Option<&WhereClause>,
-    user_where_clauses_with_world: Option<&WhereClause>,
+    fields_information: &FieldsInfo,
+    names: &NamesInfo,
+    user_generics: &Generics,
 ) -> proc_macro2::TokenStream {
+    let NamesInfo {
+        struct_name,
+        item_struct_name,
+        fetch_struct_name,
+        marker_name,
+        state_struct_name,
+    } = names;
+
+    let user_generics_with_world = add_world_lifetime(user_generics);
+    let (user_impl_generics, user_ty_generics, user_where_clauses) = user_generics.split_for_impl();
+    let (user_impl_generics_with_world, user_ty_generics_with_world, user_where_clauses_with_world) =
+        user_generics_with_world.split_for_impl();
+
+    let FieldsInfo {
+        field_types,
+        field_idents,
+        named_field_idents,
+        ..
+    } = fields_information;
+
     quote! {
         #[doc(hidden)]
         #[doc = "Automatically generated internal [`WorldQuery`] fetch type for [`"]
